@@ -1,0 +1,1436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Orbital Logistics</title>
+<style>
+:root{
+  --bg:#050607; --fg:#c9cdd2; --dim:#6b7178; --line:#23272c; --acc:#7cffb2;
+  --warn:#ffb347; --bad:#ff5d5d; --sun:#ffd36b;
+  --mercury:#a8a29e; --venus:#e8c37a; --earth:#5fa8ff; --moon:#d6d6d6; --mars:#ff7a4d;
+  --jupiter:#d9a066; --saturn:#e3cf8f; --uranus:#8fd3d9; --neptune:#6f8cff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+  font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden}
+canvas#view{position:fixed;inset:0;display:block}
+.panel{background:rgba(5,6,7,.86);border:1px solid var(--line);padding:9px 11px}
+.col{position:fixed;top:48px;bottom:10px;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.col>*{pointer-events:auto}
+#left{left:10px;width:310px}
+#right{right:10px;width:390px}
+#top{position:fixed;top:8px;left:10px;right:10px;display:flex;gap:12px;align-items:center;white-space:nowrap}
+h2{margin:0 0 6px;font-size:10px;letter-spacing:.14em;color:var(--dim);font-weight:normal}
+h3{margin:8px 0 3px;font-size:10px;letter-spacing:.14em;color:var(--dim);font-weight:normal}
+.dim{color:var(--dim)} .acc{color:var(--acc)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+.sep{color:var(--line)}
+button,select,input{font:inherit;color:var(--fg);background:transparent;border:1px solid var(--line);padding:2px 7px;cursor:pointer}
+select{background:var(--bg)}
+button:hover{border-color:var(--dim)}
+button.on{border-color:var(--acc);color:var(--acc)}
+button.big{width:100%;padding:6px;margin-top:8px;letter-spacing:.1em}
+button.big:disabled{opacity:.35;cursor:default}
+button.sm{padding:0 5px;line-height:15px}
+#fleet{flex:1 1 0;min-height:110px;overflow-y:auto;overflow-x:hidden}
+.fld select{min-width:0}
+.ship{padding:5px 0;border-top:1px solid var(--line);cursor:pointer}
+.ship:first-of-type{border-top:none}
+.ship.sel b{color:#fff}
+.ship .row{display:flex;justify-content:space-between;gap:8px}
+.ship .row>span:last-child{text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:9px;color:var(--dim);border:1px solid var(--line);padding:0 3px;margin-left:4px}
+.bar{height:2px;background:var(--line);margin-top:3px}
+.bar>i{display:block;height:100%;background:var(--acc)}
+table{border-collapse:collapse;width:100%}
+td,th{padding:1px 4px;text-align:right;font-weight:normal;white-space:nowrap}
+td:first-child,th:first-child{text-align:left;padding-left:0}
+th{font-size:9px;letter-spacing:.1em;color:var(--dim)}
+#planet{flex:1 1 0;min-height:160px;overflow:auto}
+#pbodies{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px}
+#pbodies button{padding:0 4px;font-size:10px}
+#log{flex:0 0 auto}
+#log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#planner{display:none;overflow-y:auto;overflow-x:hidden}
+.ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.fld{display:flex;align-items:center;gap:6px;margin:5px 0}
+.fld>span:first-child{width:46px;color:var(--dim);font-size:10px;letter-spacing:.1em}
+#pTo{flex:1}
+#pork{display:block;margin:6px 0;cursor:crosshair;border:1px solid var(--line)}
+#pRead div{display:flex;gap:8px}
+#pRead div>span:first-child{width:46px;flex:none;color:var(--dim);font-size:10px;letter-spacing:.1em;padding-top:1px}
+.tl{margin-top:4px}
+.tl .ev{display:grid;grid-template-columns:118px 14px 1fr;gap:0 6px;padding:2px 0;border-top:1px solid #111417}
+.tl .ev.up{opacity:.45}
+.tl .ev .d{color:var(--dim);font-size:10px;grid-column:3}
+.tl .ev .m{color:var(--dim);font-size:10px}
+.tl .nowline{color:var(--acc);font-size:10px;letter-spacing:.1em;padding:3px 0}
+.book{border-top:1px solid var(--line);padding:3px 0;cursor:pointer}
+#zoom{position:fixed;left:330px;bottom:10px;display:flex;align-items:center;gap:6px;padding:5px 8px}
+#zoom input{width:200px;accent-color:var(--acc)}
+#zoomV{min-width:86px;color:var(--dim);font-size:10px}
+#hint{margin-top:auto;color:var(--dim);font-size:11px;text-align:right}
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:5}
+#money{cursor:pointer;border-bottom:1px dotted var(--acc)}
+.fin{width:min(940px,calc(100vw - 32px));max-height:calc(100vh - 40px);overflow:auto;background:#08090b;scrollbar-color:#33383e transparent}
+#finTx td:nth-child(2),#finTx th:nth-child(2),#finTx td:nth-child(3),#finTx th:nth-child(3){text-align:left}
+#finShips td:first-child{text-align:left}
+.fin .ph h2{margin:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:6px 0 2px}
+.tiles>div{border:1px solid var(--line);padding:6px 9px}
+.tiles span{display:block;font-size:9px;letter-spacing:.12em;color:var(--dim)}
+.tiles b{font-size:18px;font-weight:normal;color:#fff}
+.chart{position:relative;width:100%}
+.chart canvas{display:block;cursor:crosshair}
+.legend{display:flex;gap:16px;font-size:10px;color:var(--dim);margin:2px 0 4px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.fincols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:640px){.fincols{grid-template-columns:1fr}}
+.fin td{padding:2px 4px}
+.tip{position:fixed;pointer-events:none;display:none;background:#0d1013;border:1px solid #33383e;padding:6px 9px;font-size:11px;z-index:7;white-space:nowrap;line-height:1.5}
+#gameMenu .panel{width:400px;line-height:1.7;background:#08090b}
+#gameMenu button{margin:2px 4px 2px 0}
+#help{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:5}
+#help .panel{max-width:600px;line-height:1.6}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="top" class="panel">
+  <b>ORBITAL LOGISTICS</b><span class="sep">│</span>
+  <span id="date"></span><span class="sep">│</span>
+  <span id="money" class="acc" title="click for finances"></span><span class="sep">│</span>
+  <span id="speeds"></span><span class="sep">│</span>
+  <span id="views"></span>
+  <span style="margin-left:auto"></span>
+  <label class="dim"><input type="checkbox" id="autoPause" checked> pause on arrival</label>
+  <button id="helpBtn">?</button>
+  <button id="gameBtn">game / save</button>
+</div>
+
+<div id="left" class="col">
+  <div id="fleet" class="panel"><h2>FLIGHT BOARD · click a ship to plan</h2><div id="fleetList"></div>
+    <div class="fld" style="margin-top:8px"><select id="buyCls"></select><select id="buySite" style="flex:1"></select><button id="buyBtn">buy</button></div>
+  </div>
+  <div id="planet" class="panel"><div id="pbodies"></div><div id="planetBody"></div></div>
+  <div id="log" class="panel"><h2>LOG</h2><div id="logList"></div></div>
+</div>
+
+<div id="zoom" class="panel">
+  <button class="sm" id="zoomOut" title="zoom out">−</button>
+  <input type="range" id="zoomR" min="0" max="1000" step="1" title="zoom">
+  <button class="sm" id="zoomIn" title="zoom in">+</button>
+  <span id="zoomV"></span>
+</div>
+
+<div id="right" class="col">
+  <div id="planner" class="panel">
+    <div class="ph"><span><b id="pShip"></b> <span class="dim" id="pWhere"></span></span><button id="pClose">×</button></div>
+    <div id="pPlan">
+      <div class="fld"><span>TO</span><select id="pTo"></select></div>
+      <div id="pManifest"></div>
+      <div class="fld"><span>FUEL</span><label><input type="checkbox" id="pFill"> fill tank</label></div>
+      <h3>TRANSFER WINDOWS · Δv by departure × flight time</h3>
+      <canvas id="pork"></canvas>
+      <div id="pRead"></div>
+      <button id="pGo" class="big">SCHEDULE LAUNCH</button>
+      <h3 id="pPlanToggle" style="cursor:pointer;margin-top:10px"></h3>
+      <div id="pEvents"></div>
+      <div id="pBook"></div>
+    </div>
+    <div id="pInfo"></div>
+  </div>
+  <div id="hint">wheel zoom · drag pan · click planets & ships<br>1 inner · 0 outer · space pause · +/- speed · ? help</div>
+</div>
+
+<div id="gameMenu" class="modal"><div class="panel">
+  <div class="ph"><h2 style="margin:0">GAME</h2><button id="gameClose">×</button></div>
+  <div>Your game <b>autosaves every 5 seconds</b> in this browser.</div>
+  <div class="dim" id="saveStatus"></div>
+  <div class="dim" style="margin:6px 0">Browser saves are lost if you clear site data or switch browsers — save to a file to keep a copy you can load anywhere.</div>
+  <button id="saveNow">save now</button><button id="exportBtn">save to file…</button><button id="importBtn">load from file…</button>
+  <input type="file" id="importFile" accept=".json,application/json" hidden>
+  <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px"><button id="newBtn">new game</button></div>
+</div></div>
+
+<div id="fin" class="modal"><div class="panel fin">
+  <div class="ph"><h2>FINANCES</h2><span><span id="finRange"></span> <button id="finClose">×</button></span></div>
+  <div class="tiles" id="finTiles"></div>
+  <h3>BALANCE</h3>
+  <div class="chart"><canvas id="finBal"></canvas></div>
+  <h3>INCOME &amp; SPENDING · per <span id="finBucket"></span></h3>
+  <div class="legend"><span><i style="background:#3987e5"></i>income (cargo sales)</span><span><i style="background:#d95926"></i>spending (cargo, propellant, fees, ships)</span></div>
+  <div class="chart"><canvas id="finBars"></canvas></div>
+  <div class="fincols">
+    <div><h3>WHERE THE MONEY CAME FROM AND WENT</h3><table id="finCats"></table></div>
+    <div><h3>BY SHIP</h3><table id="finShips"></table></div>
+  </div>
+  <h3>RECENT TRANSACTIONS</h3><table id="finTx"></table>
+</div></div>
+<div id="finTip" class="tip"></div>
+
+<div id="help"><div class="panel">
+  <h2>HOW IT WORKS</h2>
+  You run mission control for freight across the solar system. Every world <b>sells</b> some goods cheaply and
+  <b>buys</b> others at a premium — click a planet to see its lists. Buy where it's cheap, fly, and cargo is sold
+  automatically on arrival wherever that world buys it. Anything a world doesn't buy stays aboard for the next leg.<br><br>
+  <b>Planning:</b> click a docked ship. Pick a destination (or click a planet and use “send here”), add cargo with
+  − / + (shift-click for max). The chart shows Δv (fuel) for each departure date (x) and flight time (y): bright green is
+  cheap, dark means the ship can't carry enough fuel with that load. Click the chart to pick, then schedule.<br><br>
+  <b>Ships:</b> <i>Haulers</i> carry 40 t on a chemical-nuclear drive — fine for the inner system.
+  <i>Clippers</i> carry 20 t on a fusion drive and are what you need for Mercury and the outer planets.<br><br>
+  <b>Costs:</b> cargo, propellant (local price — very cheap at the Moon and the gas-giant stations), and lift per tonne
+  launched. Earth, Mars, Venus and the giants allow aerobraking, so arriving there is cheap.<br><br>
+  <b>Controls:</b> wheel zoom · drag pan · click a body or ship to follow · 1 inner system · 0 outer system ·
+  space pause · +/- speed · Esc close.
+  <div style="margin-top:10px"><button id="helpClose">close</button></div>
+</div></div>
+
+<script>
+'use strict';
+// ====================================================================== physics
+//#physics-start
+const AU = 149597870.7, DAY = 86400, KMS = AU / DAY;           // 1 AU/day in km/s
+const muAU = k => k * DAY * DAY / (AU * AU * AU);                // km^3/s^2 -> AU^3/day^2
+const MU_SUN = muAU(1.32712440018e11);
+// rLow = parking orbit (or station orbit for the giants); aero = fraction of capture Δv paid after aerobraking
+const BODIES = {
+  sun:     { name: 'Sun', R: 696000 },
+  mercury: { name: 'Mercury', a: 0.38710, phase: 3.9, R: 2440,  rLow: 2640,    muKm: 22032,     aero: 1 },
+  venus:   { name: 'Venus',   a: 0.72333, phase: 2.2, R: 6052,  rLow: 6352,    muKm: 324859,    aero: 0.15 },
+  earth:   { name: 'Earth',   a: 1.0,     phase: 0,   R: 6371,  rLow: 6571,    muKm: 398600.4,  aero: 0.1 },
+  moon:    { name: 'Moon',    a: 384400 / AU, phase: 0.6, R: 1737, rLow: 1837, muKm: 4902.8,    aero: 1, parent: 'earth' },
+  mars:    { name: 'Mars',    a: 1.52368, phase: 1.4, R: 3390,  rLow: 3590,    muKm: 42828.4,   aero: 0.25 },
+  jupiter: { name: 'Jupiter', a: 5.2026,  phase: 0.9, R: 69911, rLow: 1.88e6,  muKm: 1.26687e8, aero: 0.35 },
+  saturn:  { name: 'Saturn',  a: 9.5549,  phase: 4.6, R: 58232, rLow: 1.22e6,  muKm: 3.7931e7,  aero: 0.35 },
+  uranus:  { name: 'Uranus',  a: 19.218,  phase: 2.9, R: 25362, rLow: 436000,  muKm: 5.794e6,   aero: 0.35 },
+  neptune: { name: 'Neptune', a: 30.110,  phase: 5.5, R: 24622, rLow: 355000,  muKm: 6.8365e6,  aero: 0.35 },
+};
+for (const k in BODIES) if (BODIES[k].a) BODIES[k].mu = BODIES[k].parent ? muAU(BODIES[BODIES[k].parent].muKm) : MU_SUN;
+const MU_EARTH = BODIES.moon.mu;
+const V_MOON = Math.sqrt(398600.4 / 384400);          // km/s, Moon's orbital speed
+const VESC_AT_MOON = Math.sqrt(2 * 398600.4 / 384400); // km/s, Earth escape speed at lunar distance
+const root = id => BODIES[id].parent || id;
+const isLocal = (a, b) => (a === 'earth' && b === 'moon') || (a === 'moon' && b === 'earth');
+
+function rel(id, t) {               // position/velocity relative to parent (or Sun)
+  const b = BODIES[id], n = Math.sqrt(b.mu / (b.a ** 3)), ang = b.phase + n * t;
+  const c = Math.cos(ang), s = Math.sin(ang);
+  return { x: b.a * c, y: b.a * s, vx: -b.a * n * s, vy: b.a * n * c };
+}
+function state(id, t) {             // heliocentric
+  if (id === 'sun') return { x: 0, y: 0, vx: 0, vy: 0 };
+  const r = rel(id, t), p = BODIES[id].parent;
+  if (!p) return r;
+  const q = state(p, t);
+  return { x: r.x + q.x, y: r.y + q.y, vx: r.vx + q.vx, vy: r.vy + q.vy };
+}
+
+function stumpff(z) {
+  if (z > 1e-6) { const s = Math.sqrt(z); return [(1 - Math.cos(s)) / z, (s - Math.sin(s)) / (s * s * s)]; }
+  if (z < -1e-6) { const s = Math.sqrt(-z); return [(Math.cosh(s) - 1) / -z, (Math.sinh(s) - s) / (s * s * s)]; }
+  return [1 / 2, 1 / 6];
+}
+// 2D prograde zero-revolution Lambert solver (universal variables, bisection on z)
+function lambert(p1, p2, tof, mu) {
+  const r1 = Math.hypot(p1.x, p1.y), r2 = Math.hypot(p2.x, p2.y);
+  const cross = p1.x * p2.y - p1.y * p2.x;
+  const c = Math.max(-1, Math.min(1, (p1.x * p2.x + p1.y * p2.y) / (r1 * r2)));
+  let dth = Math.acos(c);
+  if (cross < 0) dth = 2 * Math.PI - dth;
+  const A = Math.sin(dth) * Math.sqrt(r1 * r2 / (1 - Math.cos(dth)));
+  if (!isFinite(A) || Math.abs(A) < 1e-14) return null;
+  const smu = Math.sqrt(mu);
+  const Y = z => { const [C, S] = stumpff(z); return r1 + r2 + A * (z * S - 1) / Math.sqrt(C); };
+  const T = z => {
+    const [C, S] = stumpff(z), y = r1 + r2 + A * (z * S - 1) / Math.sqrt(C);
+    if (y < 0) return -Infinity;
+    const x = Math.sqrt(y / C);
+    return (x * x * x * S + A * Math.sqrt(y)) / smu;
+  };
+  let lo = -400, hi = 4 * Math.PI * Math.PI * 0.999;
+  if (T(lo) > tof || T(hi) < tof) return null;
+  for (let i = 0; i < 80; i++) { const m = (lo + hi) / 2; if (T(m) < tof) lo = m; else hi = m; }
+  const y = Y((lo + hi) / 2);
+  if (!(y > 0)) return null;
+  const f = 1 - y / r1, g = A * Math.sqrt(y / mu), gd = 1 - y / r2;
+  return {
+    v1: { x: (p2.x - f * p1.x) / g, y: (p2.y - f * p1.y) / g },
+    v2: { x: (gd * p2.x - p1.x) / g, y: (gd * p2.y - p1.y) / g },
+  };
+}
+
+// Two-body propagation from (r, v) by dt; returns [x, y]
+function kepler(r, v, mu, dt) {
+  const rn = Math.hypot(r.x, r.y), v2 = v.x * v.x + v.y * v.y;
+  const h = r.x * v.y - r.y * v.x, sg = h >= 0 ? 1 : -1, rv = r.x * v.x + r.y * v.y;
+  const ex = ((v2 - mu / rn) * r.x - rv * v.x) / mu, ey = ((v2 - mu / rn) * r.y - rv * v.y) / mu;
+  let e = Math.hypot(ex, ey);
+  if (Math.abs(e - 1) < 1e-7) e = 1 + 1e-7;
+  const w = Math.atan2(ey, ex), p = h * h / mu, nu0 = sg * (Math.atan2(r.y, r.x) - w);
+  let nu;
+  if (e < 1) {
+    const a = p / (1 - e * e), n = Math.sqrt(mu / (a * a * a));
+    const E0 = 2 * Math.atan2(Math.sqrt(1 - e) * Math.sin(nu0 / 2), Math.sqrt(1 + e) * Math.cos(nu0 / 2));
+    const TAU = 2 * Math.PI;
+    let M = (E0 - e * Math.sin(E0) + n * dt) % TAU; if (M < 0) M += TAU;
+    // Newton safeguarded by bisection on [0, 2π] — stays robust for near-radial orbits
+    let lo = 0, hi = TAU, E = M < Math.PI ? M + e / 2 : M - e / 2;
+    for (let i = 0; i < 80; i++) {
+      const f = E - e * Math.sin(E) - M;
+      if (f > 0) hi = E; else lo = E;
+      let En = E - f / (1 - e * Math.cos(E));
+      if (!(En > lo && En < hi)) En = (lo + hi) / 2;
+      if (Math.abs(En - E) < 1e-13) { E = En; break; }
+      E = En;
+    }
+    nu = 2 * Math.atan2(Math.sqrt(1 + e) * Math.sin(E / 2), Math.sqrt(1 - e) * Math.cos(E / 2));
+  } else {
+    const a = p / (e * e - 1), n = Math.sqrt(mu / (a * a * a));
+    const F0 = 2 * Math.atanh(Math.sqrt((e - 1) / (e + 1)) * Math.tan(nu0 / 2));
+    const M = e * Math.sinh(F0) - F0 + n * dt;
+    let F = Math.asinh(M / e);
+    for (let i = 0; i < 60; i++) { const d = (e * Math.sinh(F) - F - M) / (e * Math.cosh(F) - 1); F -= d; if (Math.abs(d) < 1e-12) break; }
+    nu = 2 * Math.atan(Math.sqrt((e + 1) / (e - 1)) * Math.tanh(F / 2));
+  }
+  const rr = p / (1 + e * Math.cos(nu)), ang = w + sg * nu;
+  return [rr * Math.cos(ang), rr * Math.sin(ang)];
+}
+
+// Δv (km/s) to go between a parking orbit and hyperbolic excess speed vinf (Oberth effect)
+function capture(vinf, id) {
+  const b = BODIES[id];
+  return Math.sqrt(vinf * vinf + 2 * b.muKm / b.rLow) - Math.sqrt(b.muKm / b.rLow);
+}
+// heliocentric departure/arrival cost; the Moon also pays to climb out of Earth's well
+function wellCost(id, v, t) {
+  if (id === 'moon') {
+    const E = state('earth', t), vinf = Math.hypot(v.x - E.vx, v.y - E.vy) * KMS;
+    return capture(Math.max(0, Math.sqrt(vinf * vinf + VESC_AT_MOON ** 2) - V_MOON), 'moon');
+  }
+  const B = state(id, t);
+  return capture(Math.hypot(v.x - B.vx, v.y - B.vy) * KMS, id);
+}
+
+// Plan a transfer between bodies; returns trajectory + Δv breakdown, or null
+function transfer(from, to, t0, tof) {
+  const t1 = t0 + tof;
+  if (!isLocal(from, to)) {
+    const s1 = state(from, t0), s2 = state(to, t1);
+    const L = lambert(s1, s2, tof, MU_SUN);
+    if (!L) return null;
+    const dvDep = wellCost(from, L.v1, t0), dvArr = wellCost(to, L.v2, t1) * BODIES[to].aero;
+    return { center: 'sun', mu: MU_SUN, t0, t1, r1: { x: s1.x, y: s1.y }, v1: L.v1, dvDep, dvArr, dv: dvDep + dvArr };
+  }
+  // Earth <-> Moon, solved in Earth's frame from/to a low Earth orbit point
+  const rL = BODIES.earth.rLow / AU, D = 0.12, vc = Math.sqrt(MU_EARTH / rL);
+  if (from === 'earth') {
+    const m = rel('moon', t1), th = Math.atan2(m.y, m.x) + Math.PI + D;
+    const r1 = { x: rL * Math.cos(th), y: rL * Math.sin(th) };
+    const L = lambert(r1, m, tof, MU_EARTH);
+    if (!L) return null;
+    const dvDep = Math.hypot(L.v1.x + vc * Math.sin(th), L.v1.y - vc * Math.cos(th)) * KMS;
+    const dvArr = capture(Math.hypot(L.v2.x - m.vx, L.v2.y - m.vy) * KMS, 'moon');
+    return { center: 'earth', mu: MU_EARTH, t0, t1, r1, v1: L.v1, dvDep, dvArr, dv: dvDep + dvArr };
+  } else {
+    const m = rel('moon', t0), th = Math.atan2(m.y, m.x) + Math.PI - D;
+    const r2 = { x: rL * Math.cos(th), y: rL * Math.sin(th) };
+    const L = lambert(m, r2, tof, MU_EARTH);
+    if (!L) return null;
+    const dvDep = capture(Math.hypot(L.v1.x - m.vx, L.v1.y - m.vy) * KMS, 'moon');
+    const dvArr = Math.hypot(L.v2.x + vc * Math.sin(th), L.v2.y - vc * Math.cos(th)) * KMS * BODIES.earth.aero;
+    return { center: 'earth', mu: MU_EARTH, t0, t1, r1: { x: m.x, y: m.y }, v1: L.v1, dvDep, dvArr, dv: dvDep + dvArr };
+  }
+}
+function samplePath(tr, N = 200) {
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const p = kepler(tr.r1, tr.v1, tr.mu, (tr.t1 - tr.t0) * i / N);
+    pts.push(p[0], p[1]);
+  }
+  return pts;
+}
+// sphere-of-influence radius (AU): where a body's gravity dominates the Sun's (or Earth's, for the Moon)
+const SOI_AU = id => { const b = BODIES[id]; return b.a * (b.muKm / (b.parent ? BODIES[b.parent].muKm : 1.32712440018e11)) ** 0.4; };
+const period = id => 2 * Math.PI * Math.sqrt(BODIES[id].a ** 3 / BODIES[id].mu);
+// chart ranges: departure covers one synodic period, flight time spans around the Hohmann time
+function pairRange(a, b) {
+  if (isLocal(a, b)) return { dep: [0, 30], tof: [1.5, 10] };
+  const A = root(a), B = root(b);
+  const tH = Math.PI * Math.sqrt(((BODIES[A].a + BODIES[B].a) / 2) ** 3 / MU_SUN);
+  const syn = 1 / Math.abs(1 / period(A) - 1 / period(B));
+  return { dep: [0, Math.round(Math.min(8000, Math.max(60, syn * 1.05)))], tof: [Math.round(Math.max(20, tH * 0.3)), Math.round(tH * 1.5)] };
+}
+//#physics-end
+
+// ====================================================================== economy
+const CLASSES = {
+  hauler:  { name: 'Hauler',  dry: 20, tank: 80, cargo: 40, ve: 7.85, price: 2000 },   // nuclear thermal, Isp 800 s
+  clipper: { name: 'Clipper', dry: 30, tank: 60, cargo: 20, ve: 20.0, price: 6000 },   // fusion, Isp ~2000 s
+};
+const dvCap = (c, cargo, fuel) => c.ve * Math.log((c.dry + cargo + fuel) / (c.dry + cargo));
+const fuelFor = (c, dv, cargo) => (c.dry + cargo) * (Math.exp(dv / c.ve) - 1);
+
+// depth = tonnes that move the price by a factor of e
+const GOODS = {
+  food:        { name: 'food',        depth: 300 },
+  machinery:   { name: 'machinery',   depth: 200 },
+  electronics: { name: 'electronics', depth: 150 },
+  water:       { name: 'water',       depth: 400 },
+  propellant:  { name: 'propellant',  depth: 600 },
+  metals:      { name: 'metals',      depth: 300 },
+  he3:         { name: 'helium-3',    depth: 60 },
+  samples:     { name: 'samples',     depth: 60 },
+  solar:       { name: 'solar cells', depth: 150 },
+  chemicals:   { name: 'chemicals',   depth: 250 },
+  volatiles:   { name: 'volatiles',   depth: 250 },
+  deuterium:   { name: 'deuterium',   depth: 100 },
+};
+// what each world sells (you buy) and buys (you sell), base $k / tonne; fuel = local propellant price
+const ECON = {
+  mercury: { fuel: 12,  sells: { solar: 8, metals: 4 },                         buys: { water: 22, food: 18, machinery: 22, electronics: 35 } },
+  venus:   { fuel: 10,  sells: { chemicals: 5, samples: 12 },                   buys: { water: 15, metals: 14, food: 12, electronics: 30, machinery: 20 } },
+  earth:   { fuel: 6,   sells: { food: 2, machinery: 6, electronics: 10 },      buys: { he3: 90, samples: 70, metals: 12, solar: 30, deuterium: 50, chemicals: 15 } },
+  moon:    { fuel: 1.5, sells: { water: 2, propellant: 1.5, metals: 6, he3: 30 }, buys: { food: 10, machinery: 16, electronics: 26, solar: 20 } },
+  mars:    { fuel: 9,   sells: { samples: 15, metals: 5, water: 4 },            buys: { food: 14, machinery: 24, electronics: 40, propellant: 9, volatiles: 25, chemicals: 20 } },
+  jupiter: { fuel: 1,   sells: { he3: 25, deuterium: 15, propellant: 1 },       buys: { food: 40, machinery: 45, electronics: 60, water: 25, metals: 30 } },
+  saturn:  { fuel: 1,   sells: { volatiles: 6, he3: 20, propellant: 1 },        buys: { food: 50, machinery: 55, electronics: 70, metals: 35, solar: 45 } },
+  uranus:  { fuel: 1.5, sells: { deuterium: 10, volatiles: 5, propellant: 1.5 }, buys: { food: 70, electronics: 90, machinery: 75, solar: 60 } },
+  neptune: { fuel: 1.5, sells: { deuterium: 8, volatiles: 4, samples: 20, propellant: 1.5 }, buys: { food: 80, electronics: 100, machinery: 85, solar: 70 } },
+};
+// kind: surface (lift fee per tonne launched), aerostat, or orbital station (docking fee only)
+const SITES = {
+  caloris:    { name: 'Caloris',     body: 'mercury', kind: 'surface',  lift: 1.3,  ang: 1.0, goods: ['solar', 'metals'] },
+  aphrodite:  { name: 'Aphrodite',   body: 'venus',   kind: 'aerostat', lift: 2.5,  ang: 2.0, goods: ['chemicals', 'samples'] },
+  kennedy:    { name: 'Kennedy',     body: 'earth',   kind: 'surface',  lift: 3.0,  ang: 0.5, goods: ['machinery', 'electronics'] },
+  kourou:     { name: 'Kourou',      body: 'earth',   kind: 'surface',  lift: 2.4,  ang: 2.4, goods: ['electronics', 'food'] },
+  baikonur:   { name: 'Baikonur',    body: 'earth',   kind: 'surface',  lift: 2.7,  ang: 4.2, goods: ['machinery', 'food'] },
+  shackleton: { name: 'Shackleton',  body: 'moon',    kind: 'surface',  lift: 0.6,  ang: 4.7, goods: ['water', 'propellant'] },
+  imbrium:    { name: 'Imbrium',     body: 'moon',    kind: 'surface',  lift: 0.35, ang: 1.2, goods: ['metals', 'he3'] },
+  jezero:     { name: 'Jezero',      body: 'mars',    kind: 'surface',  lift: 1.2,  ang: 0.8, goods: ['samples', 'water'] },
+  arsia:      { name: 'Arsia',       body: 'mars',    kind: 'surface',  lift: 1.0,  ang: 3.4, goods: ['metals', 'water'] },
+  zeus:       { name: 'Zeus Stn',    body: 'jupiter', kind: 'station',  lift: 0.1,  ang: 0.3, goods: ['he3', 'deuterium', 'propellant'] },
+  cassini:    { name: 'Cassini Stn', body: 'saturn',  kind: 'station',  lift: 0.1,  ang: 2.6, goods: ['volatiles', 'he3', 'propellant'] },
+  herschel:   { name: 'Herschel Stn', body: 'uranus', kind: 'station',  lift: 0.1,  ang: 4.0, goods: ['deuterium', 'volatiles', 'propellant'] },
+  galle:      { name: 'Galle Stn',   body: 'neptune', kind: 'station',  lift: 0.1,  ang: 5.1, goods: ['deuterium', 'volatiles', 'samples', 'propellant'] },
+};
+const NAMES = ['Halley', 'Kepler', 'Tsiolkovsky', 'Oberth', 'Hohmann', 'Goddard', 'Korolev', 'Lagrange',
+  'Tereshkova', 'Vesta', 'Ceres', 'Juno', 'Brahe', 'Laika', 'Gagarin', 'Ride', 'Jemison', 'Leonov'];
+const PLANETS = ['mercury', 'venus', 'earth', 'moon', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
+const ABBR = { mercury: 'MER', venus: 'VEN', earth: 'EAR', moon: 'MOO', mars: 'MAR', jupiter: 'JUP', saturn: 'SAT', uranus: 'URA', neptune: 'NEP' };
+
+let G;
+const SAVE_VERSION = 4;
+function newGame() {
+  const market = {};
+  for (const b of PLANETS) { market[b] = {}; for (const g in GOODS) market[b][g] = 0; }
+  G = { v: SAVE_VERSION, t: 0, money: 3000, ships: [], market, log: [], nextName: 0, ledger: [], startMoney: 3000, startT: 0 };
+  addShip('hauler', 'kennedy'); addShip('hauler', 'shackleton'); addShip('hauler', 'jezero'); addShip('clipper', 'kennedy');
+  log('Mission control online. Press ? for help.');
+}
+function addShip(cls, site) {
+  const name = NAMES[G.nextName % NAMES.length] + (G.nextName >= NAMES.length ? ' ' + (1 + Math.floor(G.nextName / NAMES.length)) : '');
+  G.nextName++;
+  G.ships.push({ id: G.nextName, name, cls, site, status: 'docked', fuel: 0, hold: {}, plan: null });
+}
+const basePrice = (b, g) => g === 'propellant' ? ECON[b].fuel : (ECON[b].sells[g] ?? ECON[b].buys[g]);
+const price = (b, g) => basePrice(b, g) * Math.exp(G.market[b][g]);
+const buysHere = (b, g) => g in ECON[b].buys;
+const trade = (b, g, q) => { G.market[b][g] += q / GOODS[g].depth; };  // +buy / -sell
+const ship = id => G.ships.find(s => s.id === id);
+const tons = h => Object.values(h).reduce((a, b) => a + b, 0);
+function log(msg) { G.log.push({ t: G.t, msg }); if (G.log.length > 60) G.log.shift(); }
+
+// ====================================================================== formatting
+const EPOCH = Date.UTC(2040, 0, 1);
+const dateStr = t => new Date(EPOCH + t * 864e5).toISOString().slice(0, 10);
+const money = k => (k < 0 ? '-' : '') + (Math.abs(k) >= 1000 ? '$' + (Math.abs(k) / 1000).toFixed(2) + 'M' : '$' + Math.round(Math.abs(k)) + 'k');
+const signed = k => (k >= 0 ? '+' : '') + money(k);
+const days = d => d < 2 ? (d * 24).toFixed(0) + 'h' : d < 730 ? Math.round(d) + 'd' : (d / 365.25).toFixed(1) + 'y';
+const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const stamp = t => new Date(EPOCH + t * 864e5).toISOString().slice(0, 16).replace('T', ' ');
+const holdStr = h => { const e = Object.entries(h); return e.length ? e.map(([g, q]) => `${q}t ${GOODS[g].name}`).join(', ') : 'empty'; };
+
+// ====================================================================== flight events
+// Everything that happens on a flight, derived from the planned trajectory: burns, sphere-of-influence
+// crossings, apsides and planetary orbit crossings. Also does the exact fuel bookkeeping per burn.
+const EV_ICON = { launch: '▲', burn: '◆', soi: '◌', apsis: '•', cross: '┼', land: '▼' };
+function flightEvents(tr, pts, fromSite, toSite, c, mass, load) {
+  const from = SITES[fromSite], to = SITES[toSite], N = pts.length / 2 - 1, ev = [];
+  const T = i => tr.t0 + (tr.t1 - tr.t0) * i / N;
+  const P = [];
+  for (let i = 0; i <= N; i++) {
+    const o = tr.center === 'sun' ? { x: 0, y: 0 } : state(tr.center, T(i));
+    P.push({ x: o.x + pts[2 * i], y: o.y + pts[2 * i + 1] });
+  }
+  const add = (i, kind, text, detail = '', extra = {}) => ev.push({ t: T(i), f: i / N, kind, text, detail, ...extra });
+  const helio = tr.center === 'sun';
+
+  // burns, with propellant from the rocket equation at the actual (loaded) mass
+  const m0 = c.dry + mass + load, m1 = m0 * Math.exp(-tr.dvDep / c.ve), m2 = m1 * Math.exp(-tr.dvArr / c.ve);
+  add(0, 'launch', `${{ surface: 'liftoff from', aerostat: 'release from', station: 'undock from' }[from.kind]} ${from.name}`,
+    `${m0.toFixed(0)} t total · ${mass} t cargo · ${load.toFixed(0)} t propellant`);
+  add(0, 'burn', helio ? 'departure burn' : 'transfer injection burn',
+    `Δv ${tr.dvDep.toFixed(2)} km/s · ${(m0 - m1).toFixed(1)} t propellant`, { dv: tr.dvDep });
+
+  // sphere-of-influence exits/entries, interpolated between samples
+  const soi = (id, exit) => {
+    const R = SOI_AU(id);
+    let d0 = null;
+    for (let i = 0; i <= N; i++) {
+      const b = state(id, T(i)), d = Math.hypot(P[i].x - b.x, P[i].y - b.y);
+      if (d0 !== null && (exit ? d0 < R && d >= R : d0 >= R && d < R)) return i - 1 + (R - d0) / (d - d0);
+      d0 = d;
+    }
+    return null;
+  };
+  for (const id of [from.body, BODIES[from.body].parent].filter(Boolean)) {
+    const i = soi(id, true); if (i !== null) add(i, 'soi', `left ${BODIES[id].name}'s sphere of influence`, `${(SOI_AU(id) * AU / 1000).toFixed(0)}k km out`);
+  }
+  for (const id of [BODIES[to.body].parent, to.body].filter(Boolean)) {
+    const i = soi(id, false); if (i !== null) add(i, 'soi', `entered ${BODIES[id].name}'s sphere of influence`, `${(SOI_AU(id) * AU / 1000).toFixed(0)}k km out`);
+  }
+
+  // apsides (closest / farthest point from the central body) and orbit crossings
+  const rr = i => Math.hypot(pts[2 * i], pts[2 * i + 1]);
+  const dist = r => helio ? `${r.toFixed(3)} AU from the Sun` : `${(r * AU).toFixed(0)} km from Earth`;
+  for (let i = 1; i < N; i++) {
+    if (rr(i) < rr(i - 1) && rr(i) <= rr(i + 1)) add(i, 'apsis', helio ? 'perihelion' : 'perigee', dist(rr(i)));
+    if (rr(i) > rr(i - 1) && rr(i) >= rr(i + 1)) add(i, 'apsis', helio ? 'aphelion' : 'apogee', dist(rr(i)));
+  }
+  if (helio) for (const id of PLANETS) {
+    if (BODIES[id].parent || id === root(from.body) || id === root(to.body)) continue;
+    const a = BODIES[id].a;
+    for (let i = 1; i <= N; i++) if ((rr(i - 1) - a) * (rr(i) - a) < 0) {
+      const u = (a - rr(i - 1)) / (rr(i) - rr(i - 1)), b = state(id, T(i - 1 + u));
+      const ix = P[i - 1].x + (P[i].x - P[i - 1].x) * u, iy = P[i - 1].y + (P[i].y - P[i - 1].y) * u;
+      add(i - 1 + u, 'cross', `crossed ${BODIES[id].name}'s orbit`, `${BODIES[id].name} is ${Math.hypot(ix - b.x, iy - b.y).toFixed(2)} AU away`);
+    }
+  }
+
+  const aero = BODIES[to.body].aero;
+  add(N, 'burn', aero < 1 ? 'aerobraking + capture burn' : 'capture burn',
+    `Δv ${tr.dvArr.toFixed(2)} km/s · ${(m1 - m2).toFixed(1)} t propellant` +
+    (aero < 1 ? ` · aerobraking saved ${(tr.dvArr / aero - tr.dvArr).toFixed(2)} km/s` : ''), { dv: tr.dvArr });
+  add(N, 'land', `${{ surface: 'touchdown at', aerostat: 'docked at', station: 'docked at' }[to.kind]} ${to.name}`,
+    `${Math.max(0, m2 - c.dry - mass).toFixed(1)} t propellant remaining`);
+  ev.sort((a, b) => a.t - b.t || (a.kind === 'launch' ? -1 : b.kind === 'launch' ? 1 : a.kind === 'land' ? 1 : b.kind === 'land' ? -1 : 0));
+  return { events: ev, fuelAfter: Math.max(0, m2 - c.dry - mass) };
+}
+const met = d => d < 2 ? `${Math.floor(d)}d ${Math.round((d % 1) * 24)}h` : days(d);
+function timeline(events, t0, now) {
+  let h = '<div class="tl">', placed = now == null;
+  for (const e of events) {
+    if (!placed && e.t > now) { h += `<div class="nowline">── NOW ${stamp(now)} ──</div>`; placed = true; }
+    h += `<div class="ev${now != null && e.t > now ? ' up' : ''}"><span class="m">${stamp(e.t)} <span>T+${met(e.t - t0)}</span></span>` +
+      `<span class="acc">${EV_ICON[e.kind] || '·'}</span><span>${esc(e.text)}</span><span class="d">${esc(e.detail)}</span></div>`;
+  }
+  if (!placed) h += `<div class="nowline">── NOW ${stamp(now)} ──</div>`;
+  return h + '</div>';
+}
+
+// ====================================================================== simulation
+const SPEEDS = [0, 1, 5, 20, 60, 180, 365];  // days per real second
+let speed = 1, lastSpeed = 2;
+
+function step(dt) {
+  G.t += dt;
+  const k = Math.exp(-dt / 90);
+  for (const b of PLANETS) for (const g in GOODS) G.market[b][g] *= k;
+  for (const s of G.ships) {
+    const p = s.plan;
+    if (s.status === 'scheduled' && G.t >= p.t0) {
+      s.status = 'transit';
+      log(`${s.name} launched ${SITES[p.fromSite].name} → ${SITES[p.toSite].name}`);
+    }
+    if (s.status === 'transit' && G.t >= p.t1) arrive(s);
+  }
+}
+function arrive(s) {
+  const p = s.plan, body = SITES[p.toSite].body;
+  s.status = 'docked'; s.site = p.toSite; s.fuel = p.fuelAfter; s.plan = null;
+  let rev = 0; const sold = [];
+  for (const g in s.hold) if (buysHere(body, g)) {
+    const q = s.hold[g]; rev += q * price(body, g); trade(body, g, -q);
+    sold.push(`${q}t ${GOODS[g].name}`); delete s.hold[g];
+  }
+  G.money += rev;
+  if (rev) ledger('sale', rev, s, `${sold.join(', ')} at ${SITES[p.toSite].name}`);
+  s.logbook = [{ from: p.fromSite, to: p.toSite, t0: p.t0, t1: p.t1, dv: p.dv, paid: p.paid, rev, events: p.events }, ...(s.logbook || [])].slice(0, 8);
+  log(`${s.name} arrived ${SITES[p.toSite].name}` + (sold.length ? ` · sold ${sold.join(', ')} ${signed(rev)}` : ''));
+  if ($('autoPause').checked) setSpeed(0);
+  if (P.shipId === s.id) openPlanner(s.id);
+}
+
+// ====================================================================== camera + rendering
+const $ = id => document.getElementById(id);
+const COL = {};
+for (const k of ['bg', 'fg', 'dim', 'line', 'acc', 'warn', 'bad', 'sun', ...PLANETS])
+  COL[k] = getComputedStyle(document.documentElement).getPropertyValue('--' + k).trim();
+
+const cv = $('view'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = window.devicePixelRatio || 1; W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+}
+addEventListener('resize', resize); resize();
+
+const cam = { follow: 'inner', ox: 0, oy: 0, scale: 1 };
+function focusSpan(f) {
+  if (f === 'inner') return 1.75;
+  if (f === 'outer') return 31.5;
+  if (f === 'earth') return 384400 * 1.35 / AU;
+  if (f === 'moon') return 40000 / AU;
+  const b = BODIES[f]; return Math.max(b.rLow * 1.6, b.R * 8) / AU;
+}
+function focus(f) {
+  cam.follow = f; cam.ox = cam.oy = 0;
+  cam.scale = Math.max(200, Math.min(W - 720, H)) / 2 / focusSpan(f);
+  if (PLANETS.includes(f)) PL.body = f;
+  drawTop();
+}
+function followPos() {
+  if (typeof cam.follow === 'number') {
+    const s = ship(cam.follow);
+    if (s && s.status === 'transit') { const p = shipPos(s, G.t); return { x: p.x, y: p.y }; }
+    if (s) return state(SITES[s.site].body, G.t);
+    cam.follow = 'inner';
+  }
+  return state(BODIES[cam.follow] ? cam.follow : 'sun', G.t);
+}
+let CX = 0, CY = 0;
+const toS = (x, y) => [W / 2 + (x - CX) * cam.scale, H / 2 - (y - CY) * cam.scale];
+
+function shipPos(s, t) {
+  const p = s.plan, N = p.pts.length / 2 - 1;
+  let f = Math.max(0, Math.min(1, (t - p.t0) / (p.t1 - p.t0))) * N;
+  const i = Math.min(N - 1, Math.floor(f)), u = f - i, a = p.pts;
+  const c = p.center === 'sun' ? { x: 0, y: 0 } : state(p.center, t);
+  return {
+    x: c.x + a[2 * i] + (a[2 * i + 2] - a[2 * i]) * u,
+    y: c.y + a[2 * i + 1] + (a[2 * i + 3] - a[2 * i + 1]) * u,
+    hd: Math.atan2(a[2 * i + 3] - a[2 * i + 1], a[2 * i + 2] - a[2 * i]),
+  };
+}
+
+function drawPath(pts, center, color, dash, from = 0, to = pts.length / 2) {
+  const c = center === 'sun' ? { x: 0, y: 0 } : state(center, G.t);
+  ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.beginPath();
+  for (let i = Math.max(0, from); i < to; i++) {
+    const [X, Y] = toS(c.x + pts[2 * i], c.y + pts[2 * i + 1]);
+    i === from ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+}
+function ring(x, y, r, color, dash = []) {
+  ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+}
+function label(txt, x, y, color, align = 'left') {
+  ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(txt, x, y);
+}
+
+const MINR = { sun: 5, mercury: 2.2, venus: 3, earth: 3.5, moon: 2.2, mars: 3, jupiter: 5, saturn: 4.5, uranus: 4, neptune: 4 };
+const hits = []; // clickable things on the map this frame
+function render() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, W, H);
+  ctx.font = '10px ui-monospace,Menlo,Consolas,monospace'; ctx.lineWidth = 1;
+  const fp = followPos(); CX = fp.x + cam.ox; CY = fp.y + cam.oy;
+  hits.length = 0;
+
+  // orbits
+  const [sx, sy] = toS(0, 0);
+  for (const id of PLANETS) if (!BODIES[id].parent) {
+    const r = BODIES[id].a * cam.scale;
+    if (r < 4e6) ring(sx, sy, r, COL.line);
+  }
+  const E = state('earth', G.t), [ex, ey] = toS(E.x, E.y);
+  const moonOrbitPx = BODIES.moon.a * cam.scale;
+  if (moonOrbitPx > 6) ring(ex, ey, moonOrbitPx, COL.line);
+
+  // planner preview
+  if (P.tr && P.prevPts && P.mode === 'plan') {
+    drawPath(P.prevPts, P.tr.center, COL.acc, [3, 4]);
+    const ghost = (id, t) => { const s = state(id, t), [X, Y] = toS(s.x, s.y); ring(X, Y, 6, COL[id], [2, 2]); };
+    if (P.tr.center === 'sun') { ghost(P.from, P.tr.t0); ghost(P.to, P.tr.t1); }
+    const pe = previewEvents(); if (pe) drawEvents(P.prevPts, P.tr.center, pe.events);
+  }
+  const selShip = P.mode === 'info' && ship(P.shipId);
+  if (selShip && selShip.plan) drawEvents(selShip.plan.pts, selShip.plan.center, selShip.plan.events);
+
+  // bodies
+  for (const id of ['sun', ...PLANETS]) {
+    const s = state(id, G.t), [X, Y] = toS(s.x, s.y), b = BODIES[id];
+    const r = Math.max(MINR[id], b.R / AU * cam.scale);
+    if (X < -r - 80 || X > W + r + 80 || Y < -r - 80 || Y > H + r + 80) continue;
+    ctx.fillStyle = COL[id]; ctx.beginPath(); ctx.arc(X, Y, r, 0, 7); ctx.fill();
+    if (id === 'saturn') ring(X, Y, r * 2.2, COL.saturn);
+    if (id !== 'sun') hits.push({ x: X, y: Y, r: Math.max(r, 9), act: () => focus(id) });
+    // skip labels that would pile onto the Sun or Earth
+    if (id === 'moon' && moonOrbitPx < 14) continue;
+    if (b.a && !b.parent && b.a * cam.scale < 16) continue;
+    label(b.name.toUpperCase(), X + r + 5, Y - r - 3, COL[id]);
+    if (r > 14 && id !== 'sun') drawSites(id, X, Y, r);
+  }
+
+  // ships
+  for (const s of G.ships) {
+    if (s.status === 'docked') continue;
+    const p = s.plan, sel = P.shipId === s.id, N = p.pts.length / 2;
+    if (s.status === 'scheduled') { drawPath(p.pts, p.center, sel ? COL.warn : '#3a3226', [2, 5]); continue; }
+    const f = Math.floor((G.t - p.t0) / (p.t1 - p.t0) * (N - 1));
+    drawPath(p.pts, p.center, sel ? COL.dim : '#2c3530', [], 0, f + 2);
+    drawPath(p.pts, p.center, sel ? COL.acc : '#3e5a4b', [2, 4], f, N);
+    const q = shipPos(s, G.t), [X, Y] = toS(q.x, q.y), a = -q.hd;
+    ctx.fillStyle = sel ? '#fff' : COL.acc;
+    ctx.beginPath();
+    ctx.moveTo(X + 7 * Math.cos(a), Y + 7 * Math.sin(a));
+    ctx.lineTo(X + 4 * Math.cos(a + 2.5), Y + 4 * Math.sin(a + 2.5));
+    ctx.lineTo(X + 1.5 * Math.cos(a + Math.PI), Y + 1.5 * Math.sin(a + Math.PI));
+    ctx.lineTo(X + 4 * Math.cos(a - 2.5), Y + 4 * Math.sin(a - 2.5));
+    ctx.fill();
+    label(s.name.toUpperCase(), X + 9, Y + 12, sel ? '#fff' : COL.dim);
+    hits.push({ x: X, y: Y, r: 10, act: () => { openPlanner(s.id); cam.follow = s.id; cam.ox = cam.oy = 0; } });
+  }
+
+  // scale bar
+  const target = 120 / cam.scale;
+  let unit = 'AU', len = target;
+  if (target < 0.05) { len = target * AU; unit = 'km'; }
+  const mag = 10 ** Math.floor(Math.log10(len)), nice = [1, 2, 5, 10].map(m => m * mag).filter(v => v <= len).pop();
+  const px = (unit === 'km' ? nice / AU : nice) * cam.scale;
+  const bx = 334 + px, by = H - 58;   // just above the zoom slider
+  ctx.strokeStyle = COL.dim; ctx.beginPath(); ctx.moveTo(bx - px, by - 3); ctx.lineTo(bx - px, by); ctx.lineTo(bx, by); ctx.lineTo(bx, by - 3); ctx.stroke();
+  label(`${nice.toLocaleString()} ${unit}`, bx - px, by - 6, COL.dim, 'left');
+}
+function drawEvents(pts, center, events) {
+  const N = pts.length / 2 - 1, c = center === 'sun' ? { x: 0, y: 0 } : state(center, G.t);
+  for (const e of events) {
+    if (e.kind === 'launch' || e.kind === 'land') continue;
+    const fi = e.f * N, i = Math.min(N - 1, Math.floor(fi)), u = fi - i;
+    const [X, Y] = toS(c.x + pts[2 * i] + (pts[2 * i + 2] - pts[2 * i]) * u, c.y + pts[2 * i + 1] + (pts[2 * i + 3] - pts[2 * i + 1]) * u);
+    if (e.kind === 'burn') {
+      ctx.strokeStyle = COL.acc; ctx.beginPath(); ctx.moveTo(X, Y - 5); ctx.lineTo(X + 5, Y); ctx.lineTo(X, Y + 5); ctx.lineTo(X - 5, Y); ctx.closePath(); ctx.stroke();
+      label(`Δv ${e.dv.toFixed(2)}`, X + 8, Y - 6, COL.acc);
+    } else if (e.kind === 'soi') ring(X, Y, 3, COL.dim);
+    else if (e.kind === 'apsis') { ctx.fillStyle = COL.fg; ctx.fillRect(X - 1.5, Y - 1.5, 3, 3); label(e.text, X + 6, Y + 4, COL.dim); }
+    else if (e.kind === 'cross') { ctx.strokeStyle = COL.dim; ctx.beginPath(); ctx.moveTo(X - 4, Y - 4); ctx.lineTo(X + 4, Y + 4); ctx.moveTo(X + 4, Y - 4); ctx.lineTo(X - 4, Y + 4); ctx.stroke(); }
+  }
+}
+function drawSites(id, X, Y, r) {
+  for (const k in SITES) {
+    const st = SITES[k]; if (st.body !== id) continue;
+    const c = Math.cos(st.ang), sn = Math.sin(st.ang);
+    if (st.kind === 'station') {
+      const rr = BODIES[id].rLow / AU * cam.scale;
+      ring(X, Y, rr, COL.line, [1, 4]);
+      const px = X + c * rr, py = Y - sn * rr;
+      ctx.fillStyle = COL.fg; ctx.fillRect(px - 2, py - 2, 4, 4);
+      label(st.name, px + 7, py + 3, COL.dim);
+    } else {
+      ctx.strokeStyle = COL.dim; ctx.beginPath(); ctx.moveTo(X + c * r, Y - sn * r); ctx.lineTo(X + c * (r + 8), Y - sn * (r + 8)); ctx.stroke();
+      label(st.name, X + c * (r + 11), Y - sn * (r + 11) + 3, COL.dim, c < 0 ? 'right' : 'left');
+    }
+  }
+}
+
+// ====================================================================== map input
+let drag = null;
+cv.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, moved: false }; });
+addEventListener('mousemove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true;
+  cam.ox -= dx / cam.scale; cam.oy += dy / cam.scale;
+  drag.x = e.clientX; drag.y = e.clientY;
+});
+addEventListener('mouseup', e => {
+  if (drag && !drag.moved) {
+    let best = null, bd = 1e9;
+    for (const h of hits) { const d = Math.hypot(h.x - e.clientX, h.y - e.clientY); if (d < h.r && d < bd) { bd = d; best = h; } }
+    if (best) best.act();
+  }
+  drag = null;
+});
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const ns = clampZoom(cam.scale * Math.exp(-e.deltaY * 0.0015));
+  const wx = CX + (e.clientX - W / 2) / cam.scale, wy = CY - (e.clientY - H / 2) / cam.scale;
+  const fp = followPos();
+  cam.ox = wx - (e.clientX - W / 2) / ns - fp.x;
+  cam.oy = wy + (e.clientY - H / 2) / ns - fp.y;
+  cam.scale = ns;
+}, { passive: false });
+// zoom slider: log scale from the whole outer system down to a single planet's surface
+const ZMIN = 5, ZMAX = 5e7;
+const clampZoom = z => Math.max(ZMIN, Math.min(ZMAX, z));
+const zoomToSlider = z => Math.round(Math.log(z / ZMIN) / Math.log(ZMAX / ZMIN) * 1000);
+const sliderToZoom = v => ZMIN * (ZMAX / ZMIN) ** (v / 1000);
+$('zoomR').oninput = e => { cam.scale = sliderToZoom(+e.target.value); };
+$('zoomIn').onclick = () => { cam.scale = clampZoom(cam.scale * 1.6); };
+$('zoomOut').onclick = () => { cam.scale = clampZoom(cam.scale / 1.6); };
+let shownZoom = 0;
+function syncZoom() {   // reflect wheel / focus zooms on the slider
+  if (cam.scale === shownZoom) return;
+  shownZoom = cam.scale;
+  if (document.activeElement !== $('zoomR')) $('zoomR').value = zoomToSlider(cam.scale);
+  const span = Math.min(W, H) / cam.scale;   // width of view in AU
+  $('zoomV').textContent = span > 0.05 ? `view ${span < 10 ? span.toFixed(2) : span.toFixed(0)} AU` : `view ${Math.round(span * AU).toLocaleString()} km`;
+}
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const k = e.key;
+  if (k === ' ') { e.preventDefault(); setSpeed(speed ? 0 : lastSpeed); }
+  else if (k === '1') focus('inner'); else if (k === '0') focus('outer');
+  else if (k === '+' || k === '=') setSpeed(Math.min(SPEEDS.length - 1, speed + 1));
+  else if (k === '-') setSpeed(Math.max(0, speed - 1));
+  else if (k === '?') toggleHelp();
+  else if (k === 'Escape') { if (['gameMenu', 'fin', 'help'].some(id => $(id).style.display === 'flex')) closeModals(); else closePlanner(); }
+});
+
+// ====================================================================== top bar
+function setSpeed(i) { if (speed) lastSpeed = speed; speed = i; if (i) lastSpeed = i; drawTop(); }
+function drawTop() {
+  $('speeds').innerHTML = SPEEDS.map((v, i) => `<button data-sp="${i}" class="${i === speed ? 'on' : ''}">${i ? v + 'd/s' : 'II'}</button>`).join(' ');
+  $('views').innerHTML = ['inner', 'outer'].map(v => `<button data-fo="${v}" class="${cam.follow === v ? 'on' : ''}">${v}</button>`).join(' ');
+}
+$('top').addEventListener('pointerdown', e => {
+  const t = e.target;
+  if (t.dataset.sp) setSpeed(+t.dataset.sp);
+  if (t.dataset.fo) focus(t.dataset.fo);
+});
+function toggleHelp() { const h = $('help'); h.style.display = h.style.display === 'flex' ? 'none' : 'flex'; }
+$('helpBtn').onclick = toggleHelp; $('helpClose').onclick = toggleHelp;
+$('newBtn').onclick = () => { if (confirm('Start a new game? Current progress is lost.')) { newGame(); closePlanner(); closeModals(); focus('inner'); } };
+
+// ====================================================================== fleet panel
+$('buyCls').innerHTML = Object.entries(CLASSES).map(([k, c]) => `<option value="${k}">${c.name} ${money(c.price)}</option>`).join('');
+$('buySite').innerHTML = siteOptions(() => true);
+$('buyBtn').onclick = () => {
+  const c = CLASSES[$('buyCls').value];
+  if (G.money < c.price) return;
+  G.money -= c.price; addShip($('buyCls').value, $('buySite').value);
+  ledger('ship', -c.price, G.ships[G.ships.length - 1], `${c.name.toLowerCase()} at ${SITES[$('buySite').value].name}`);
+  log(`Commissioned ${c.name.toLowerCase()} ${G.ships[G.ships.length - 1].name} at ${SITES[$('buySite').value].name} −${money(c.price)}`);
+};
+function siteOptions(ok, label = k => SITES[k].name, sel) {
+  return PLANETS.map(b => {
+    const opts = Object.keys(SITES).filter(k => SITES[k].body === b && ok(k));
+    if (!opts.length) return '';
+    return `<optgroup label="${BODIES[b].name}">${opts.map(k => `<option value="${k}" ${k === sel ? 'selected' : ''}>${label(k)}</option>`).join('')}</optgroup>`;
+  }).join('');
+}
+$('fleetList').addEventListener('pointerdown', e => {
+  const el = e.target.closest('[data-ship]'); if (el) openPlanner(+el.dataset.ship);
+});
+
+function shipRow(s) {
+  const p = s.plan, sel = P.shipId === s.id ? ' sel' : '';
+  const where = k => `${SITES[k].name} <span class="dim">·</span> <span style="color:${COL[SITES[k].body]}">${BODIES[SITES[k].body].name}</span>`;
+  const cargo = tons(s.hold) ? `${tons(s.hold)}t ${Object.keys(s.hold).map(g => GOODS[g].name).join('+')}` : 'empty';
+  let status, route, info, bar = '';
+  if (s.status === 'docked') {
+    status = '<span class="dim">DOCKED</span>';
+    route = where(s.site);
+    info = `${cargo} · fuel ${s.fuel.toFixed(0)}t`;
+  } else if (s.status === 'scheduled') {
+    status = `<span class="warn">LAUNCH T-${days(p.t0 - G.t)}</span>`;
+    route = `${where(p.fromSite)} → ${where(p.toSite)}`;
+    info = `${cargo} · Δv ${p.dv.toFixed(2)} km/s`;
+  } else {
+    status = '<span class="acc">IN TRANSIT</span>';
+    route = `${where(p.fromSite)} → ${where(p.toSite)}`;
+    info = `${cargo} · ETA ${days(p.t1 - G.t)}`;
+    bar = `<div class="bar"><i style="width:${((G.t - p.t0) / (p.t1 - p.t0) * 100).toFixed(1)}%"></i></div>`;
+  }
+  return `<div class="ship${sel}" data-ship="${s.id}">
+    <div class="row"><span><b>${esc(s.name.toUpperCase())}</b><span class="tag">${CLASSES[s.cls].name.toUpperCase()}</span></span><span>${status}</span></div>
+    <div>${route}</div>
+    <div class="dim">${info}</div>${bar}</div>`;
+}
+
+// ====================================================================== planet panel
+const PL = { body: 'earth' };
+$('pbodies').addEventListener('pointerdown', e => { const b = e.target.dataset.body; if (b) focus(b); });
+$('planetBody').addEventListener('pointerdown', e => {
+  const t = e.target;
+  if (t.dataset.route) { setDest(t.dataset.route); }
+  if (t.dataset.ship) openPlanner(+t.dataset.ship);
+});
+function drawPlanet() {
+  const b = PL.body, E = ECON[b], B = BODIES[b];
+  $('pbodies').innerHTML = PLANETS.map(k => `<button data-body="${k}" class="${k === b ? 'on' : ''}" style="color:${COL[k]}">${ABBR[k]}</button>`).join('');
+  const s = P.mode === 'plan' ? ship(P.shipId) : null;
+  const orbit = B.parent ? `orbits Earth · ${(B.a * AU / 1000).toFixed(0)}k km` : `${B.a.toFixed(2)} AU · year ${days(period(b))}`;
+  const sites = Object.keys(SITES).filter(k => SITES[k].body === b).map(k => {
+    const st = SITES[k];
+    const btn = s && SITES[s.site].body !== b ? ` <button class="sm" data-route="${k}">send ${esc(s.name)} here</button>` : '';
+    return `<div>${st.name} <span class="dim">· ${st.kind} · lift $${st.lift}k/t · ${st.goods.map(g => GOODS[g].name).join(', ')}</span>${btn}</div>`;
+  }).join('');
+  const rows = (list, there) => Object.keys(list).map(g => {
+    const p = price(b, g), base = basePrice(b, g), d = p / base - 1;
+    const trend = Math.abs(d) < 0.03 ? '' : `<span class="${d > 0 ? 'warn' : 'dim'}">${d > 0 ? '▲' : '▼'}${Math.abs(d * 100).toFixed(0)}%</span>`;
+    return `<tr><td>${GOODS[g].name}</td><td>${p.toFixed(1)}</td><td>${trend}</td></tr>`;
+  }).join('');
+  const docked = G.ships.filter(x => x.status === 'docked' && SITES[x.site].body === b);
+  $('planetBody').innerHTML = `
+    <div style="color:${COL[b]}"><b>${B.name.toUpperCase()}</b> <span class="dim">${orbit}</span></div>
+    <div class="dim">propellant $${price(b, 'propellant').toFixed(1)}k/t</div>
+    <h3>SITES</h3>${sites}
+    <div style="display:flex;gap:14px">
+      <div style="flex:1"><h3>SELLS · you buy</h3><table>${rows(E.sells)}</table></div>
+      <div style="flex:1"><h3>BUYS · you sell</h3><table>${rows(E.buys)}</table></div>
+    </div>
+    ${docked.length ? `<h3>DOCKED</h3>${docked.map(x => `<button class="sm" data-ship="${x.id}">${esc(x.name)}</button>`).join(' ')}` : ''}`;
+}
+
+function drawPanels() {
+  $('date').textContent = dateStr(G.t);
+  $('money').textContent = money(G.money);
+  $('buyBtn').disabled = G.money < CLASSES[$('buyCls').value].price;
+  $('fleetList').innerHTML = G.ships.map(shipRow).join('');
+  drawPlanet();
+  $('logList').innerHTML = G.log.slice(-6).reverse().map(l => `<div><span class="dim">${dateStr(l.t)}</span> ${esc(l.msg)}</div>`).join('');
+  if (P.shipId) drawPlannerText();
+}
+
+// ====================================================================== planner
+const P = { shipId: null, mode: null, from: null, to: null, toSite: null, buy: {}, grid: null, tr: null, prevPts: null, hover: null, gridAt: 0, showPlan: true, bookOpen: -1, evKey: '', ev: null };
+const pork = $('pork'), pctx = pork.getContext('2d');
+const PW = 352, PH = 180, PLm = 34, PB = 16;   // porkchop size + axis margins
+pork.width = PW * DPR; pork.height = PH * DPR; pork.style.width = PW + 'px'; pork.style.height = PH + 'px';
+
+function openPlanner(id) {
+  const s = ship(id); if (!s) return;
+  const fresh = P.shipId !== id || P.mode !== 'plan';
+  P.shipId = id; P.hover = null; infoKey = eventsKey = '';
+  if (fresh) P.bookOpen = -1;
+  $('planner').style.display = 'block';
+  $('pShip').innerHTML = `${esc(s.name.toUpperCase())} <span class="tag">${CLASSES[s.cls].name.toUpperCase()}</span>`;
+  if (s.status === 'docked') {
+    P.mode = 'plan';
+    $('pPlan').style.display = 'block'; $('pInfo').style.display = 'none';
+    $('pWhere').textContent = 'at ' + SITES[s.site].name;
+    P.from = SITES[s.site].body;
+    if (fresh) P.buy = {};
+    if (!P.toSite || SITES[P.toSite].body === P.from) P.toSite = bestDest(s) || Object.keys(SITES).find(k => SITES[k].body !== P.from);
+    drawDestOptions();
+    pickDest();
+  } else {
+    P.mode = 'info';
+    $('pPlan').style.display = 'none'; $('pInfo').style.display = 'block';
+    $('pWhere').textContent = '';
+  }
+  drawPlannerText();
+}
+function closePlanner() { P.shipId = null; P.mode = null; P.tr = null; $('planner').style.display = 'none'; }
+$('pClose').onclick = closePlanner;
+$('pTo').onchange = () => setDest($('pTo').value);
+$('pFill').onchange = () => { drawPork(); drawPlannerText(); };
+function setDest(site) {
+  if (P.mode !== 'plan') return;
+  P.toSite = site; drawDestOptions(); pickDest();
+}
+// value of the ship's (planned) hold if sold at a destination body, at today's prices
+function manifest(s) {
+  const m = { ...s.hold };
+  for (const g in P.buy) if (P.buy[g]) m[g] = (m[g] || 0) + P.buy[g];
+  return m;
+}
+const saleValue = (m, body) => Object.entries(m).reduce((a, [g, q]) => a + (buysHere(body, g) ? q * price(body, g) : 0), 0);
+function bestDest(s) {
+  const m = manifest(s); let best = null, bv = 0;
+  for (const k in SITES) if (SITES[k].body !== P.from) { const v = saleValue(m, SITES[k].body); if (v > bv) { bv = v; best = k; } }
+  return best;
+}
+function drawDestOptions() {
+  const s = ship(P.shipId), m = manifest(s);
+  $('pTo').innerHTML = siteOptions(k => SITES[k].body !== P.from, k => {
+    const v = saleValue(m, SITES[k].body);
+    return `${SITES[k].name}${v ? ' — sells ' + money(v) : ''}`;
+  }, P.toSite);
+}
+
+function drawManifest() {
+  const s = ship(P.shipId), c = CLASSES[s.cls], from = P.from, to = SITES[P.toSite].body, m = manifest(s);
+  const there = g => buysHere(to, g) ? `<span class="acc">${price(to, g).toFixed(1)}</span>` : '<span class="dim">—</span>';
+  let h = `<h3>CARGO · ${tons(m)} / ${c.cargo} t</h3><table><tr><th>good</th><th>here</th><th>${BODIES[to].name.toLowerCase()}</th><th>tonnes</th></tr>`;
+  for (const g in s.hold) h += `<tr><td>${GOODS[g].name} <span class="dim">aboard</span></td><td></td><td>${there(g)}</td><td>${s.hold[g]}</td></tr>`;
+  for (const g of SITES[s.site].goods)
+    h += `<tr><td>${GOODS[g].name}</td><td>${price(from, g).toFixed(1)}</td><td>${there(g)}</td>
+      <td><button class="sm" data-g="${g}" data-d="-5">−</button> ${String(P.buy[g] || 0).padStart(2, ' ')} <button class="sm" data-g="${g}" data-d="5">+</button></td></tr>`;
+  $('pManifest').innerHTML = h + '</table>';
+}
+$('pManifest').addEventListener('pointerdown', e => {
+  const t = e.target; if (!t.dataset.g) return;
+  const s = ship(P.shipId), c = CLASSES[s.cls], g = t.dataset.g, cur = P.buy[g] || 0;
+  const free = c.cargo - tons(manifest(s));
+  const d = +t.dataset.d;
+  P.buy[g] = d > 0 ? cur + Math.min(free, e.shiftKey ? free : d) : Math.max(0, e.shiftKey ? 0 : cur + d);
+  drawManifest(); drawDestOptions(); drawPork(); drawPlannerText();
+});
+
+function pickDest() {
+  P.to = SITES[P.toSite].body;
+  computeGrid();
+  // auto-pick the earliest departure that is near the cheapest option
+  const g = P.grid; let bi = 0, bx = Infinity;
+  for (let i = 0; i < g.dv.length; i++) {
+    const ix = i % g.NX;
+    if (g.dv[i] <= g.min + 0.3 && (ix < bx || (ix === bx && g.dv[i] < g.dv[bi]))) { bi = i; bx = ix; }
+  }
+  const ix = bi % g.NX, iy = Math.floor(bi / g.NX);
+  setSel(g.tBase + g.R.dep[0] + (ix + .5) / g.NX * (g.R.dep[1] - g.R.dep[0]), g.R.tof[0] + (iy + .5) / g.NY * (g.R.tof[1] - g.R.tof[0]));
+}
+function computeGrid() {
+  const R = pairRange(P.from, P.to), NX = 64, NY = 40, dv = new Float32Array(NX * NY);
+  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const t0 = G.t + R.dep[0] + (i + .5) / NX * (R.dep[1] - R.dep[0]);
+    const tof = R.tof[0] + (j + .5) / NY * (R.tof[1] - R.tof[0]);
+    const tr = transfer(P.from, P.to, t0, tof);
+    dv[j * NX + i] = tr ? tr.dv : Infinity;
+  }
+  let mn = Infinity, mx = 0; for (const v of dv) { mn = Math.min(mn, v); if (isFinite(v)) mx = Math.max(mx, v); }
+  P.grid = { NX, NY, dv, R, tBase: G.t, min: mn, span: Math.max(0.5, Math.min(6, mx - mn)) };
+  P.gridAt = performance.now();
+  drawPork();
+}
+function setSel(t0, tof) {
+  P.tr = transfer(P.from, P.to, t0, tof);
+  P.prevPts = P.tr ? samplePath(P.tr) : null;
+  drawPork(); drawPlannerText();
+}
+function porkXY(e) {
+  const r = pork.getBoundingClientRect(), g = P.grid;
+  const fx = (e.clientX - r.left - PLm) / (PW - PLm), fy = 1 - (e.clientY - r.top) / (PH - PB);
+  if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return null;
+  return { t0: g.tBase + g.R.dep[0] + fx * (g.R.dep[1] - g.R.dep[0]), tof: g.R.tof[0] + fy * (g.R.tof[1] - g.R.tof[0]) };
+}
+pork.addEventListener('mousemove', e => {
+  const q = porkXY(e); P.hover = q ? transfer(P.from, P.to, q.t0, q.tof) : null; drawPork(); drawPlannerText();
+});
+pork.addEventListener('mouseleave', () => { P.hover = null; drawPork(); drawPlannerText(); });
+pork.addEventListener('click', e => { const q = porkXY(e); if (q) setSel(q.t0, q.tof); });
+
+function drawPork() {
+  const g = P.grid; if (!g || P.mode !== 'plan') return;
+  const s = ship(P.shipId), c = CLASSES[s.cls];
+  const x = pctx; x.setTransform(DPR, 0, 0, DPR, 0, 0);
+  x.fillStyle = COL.bg; x.fillRect(0, 0, PW, PH);
+  const cap = dvCap(c, tons(manifest(s)), c.tank), span = g.span;
+  const cw = (PW - PLm) / g.NX, ch = (PH - PB) / g.NY;
+  for (let j = 0; j < g.NY; j++) for (let i = 0; i < g.NX; i++) {
+    const v = g.dv[j * g.NX + i];
+    if (v > cap) x.fillStyle = '#101214';
+    else { const n = Math.min(1, (v - g.min) / span); x.fillStyle = `hsl(${140 - 140 * n},${70 - 30 * n}%,${48 - 30 * n}%)`; }
+    x.fillRect(PLm + i * cw, PH - PB - (j + 1) * ch, cw + .5, ch + .5);
+  }
+  const X = t0 => PLm + (t0 - g.tBase - g.R.dep[0]) / (g.R.dep[1] - g.R.dep[0]) * (PW - PLm);
+  const Y = tof => PH - PB - (tof - g.R.tof[0]) / (g.R.tof[1] - g.R.tof[0]) * (PH - PB);
+  x.font = '9px ui-monospace,Menlo,monospace'; x.fillStyle = COL.dim;
+  x.textAlign = 'left'; x.fillText('now', PLm, PH - 4);
+  x.textAlign = 'right'; x.fillText(`+${days(g.R.dep[1])}`, PW - 2, PH - 4);
+  x.fillText(days(g.R.tof[1]), PLm - 3, 9); x.fillText(days(g.R.tof[0]), PLm - 3, PH - PB);
+  x.save(); x.translate(9, (PH - PB) / 2); x.rotate(-Math.PI / 2); x.textAlign = 'center'; x.fillText('flight', 0, 0); x.restore();
+  x.textAlign = 'center'; x.fillText('departure →', (PLm + PW) / 2, PH - 4);
+  const nx = X(G.t);   // shade the part of the (slightly stale) chart that is now in the past
+  if (nx > PLm) { x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(PLm, 0, nx - PLm, PH - PB); }
+  const mark = (tr, col) => {
+    if (!tr) return; const mx = X(tr.t0), my = Y(tr.t1 - tr.t0);
+    x.strokeStyle = col; x.beginPath(); x.moveTo(mx, 0); x.lineTo(mx, PH - PB); x.moveTo(PLm, my); x.lineTo(PW, my); x.stroke();
+    x.beginPath(); x.arc(mx, my, 3, 0, 7); x.stroke();
+  };
+  if (P.hover) mark(P.hover, 'rgba(255,255,255,.35)');
+  mark(P.tr, '#fff');
+}
+
+function evalPlan(s, tr) {
+  const c = CLASSES[s.cls], from = SITES[s.site], to = SITES[P.toSite], m = manifest(s), mass = tons(m);
+  const need = fuelFor(c, tr.dv, mass);
+  const load = $('pFill').checked ? c.tank : Math.min(c.tank, Math.max(need, s.fuel));
+  const buyFuel = Math.max(0, load - s.fuel);
+  const cargoCost = Object.entries(P.buy).reduce((a, [g, q]) => a + q * price(from.body, g), 0);
+  const fuelCost = buyFuel * price(from.body, 'propellant');
+  const lift = from.lift * (c.dry + mass + load);
+  const revenue = saleValue(m, to.body);
+  const unsold = Object.keys(m).filter(g => !buysHere(to.body, g));
+  const total = cargoCost + fuelCost + lift;
+  let why = '';
+  if (tr.t0 < G.t) why = 'departure date has passed — pick again';
+  else if (need > c.tank) why = `needs ${need.toFixed(0)}t fuel, tank holds ${c.tank}t — less cargo, a better window${s.cls === 'hauler' ? ', or a Clipper' : ''}`;
+  else if (total > G.money) why = 'insufficient funds';
+  return { c, mass, need, load, buyFuel, cargoCost, fuelCost, lift, revenue, unsold, total, net: revenue - cargoCost - fuelCost - lift, ok: !why, why, cap: dvCap(c, mass, c.tank) };
+}
+
+function previewEvents() {
+  const s = ship(P.shipId); if (!s || !P.tr || !P.prevPts || P.mode !== 'plan') return null;
+  const e = evalPlan(s, P.tr);
+  const key = [P.tr.t0, P.tr.t1, P.toSite, e.mass, e.load].join();
+  if (key !== P.evKey) { P.evKey = key; P.ev = flightEvents(P.tr, P.prevPts, s.site, P.toSite, e.c, e.mass, e.load); }
+  return P.ev;
+}
+let eventsKey = '';
+function drawFlightPlan(s) {
+  const pe = previewEvents();
+  const key = [P.evKey, P.showPlan, P.bookOpen, (s.logbook || []).length, s.id].join('|');
+  if (key === eventsKey) return;
+  eventsKey = key;
+  $('pPlanToggle').textContent = (P.showPlan ? '▾' : '▸') + ' FLIGHT PLAN · maneuvers & events for the selected window';
+  $('pEvents').innerHTML = P.showPlan && pe ? timeline(pe.events, P.tr.t0, null) : '';
+  const book = s.logbook || [];
+  $('pBook').innerHTML = book.length ? '<h3>LOGBOOK · past flights (click to expand)</h3>' + book.map((b, i) =>
+    `<div class="book" data-book="${i}">${i === P.bookOpen ? '▾' : '▸'} ${dateStr(b.t0)} ${SITES[b.from].name} → ${SITES[b.to].name}
+      <span class="dim">${days(b.t1 - b.t0)} · Δv ${b.dv.toFixed(2)} · paid ${money(b.paid)} · sold ${money(b.rev)}</span>
+      ${i === P.bookOpen ? timeline(b.events, b.t0, null) : ''}</div>`).join('') : '';
+}
+$('pPlanToggle').onclick = () => { P.showPlan = !P.showPlan; drawPlannerText(); };
+$('pBook').addEventListener('click', e => {
+  const el = e.target.closest('[data-book]'); if (!el) return;
+  P.bookOpen = P.bookOpen === +el.dataset.book ? -1 : +el.dataset.book; drawPlannerText();
+});
+let infoKey = '';
+let manifestKey = '';
+function drawPlannerText() {
+  const s = ship(P.shipId); if (!s) return closePlanner();
+  if (P.mode === 'plan' && s.status !== 'docked') return openPlanner(s.id);
+  if (P.mode === 'plan') {
+    // rebuild the cargo table only when something it shows changed (keeps buttons clickable)
+    const key = JSON.stringify([P.buy, P.toSite, s.hold, Math.round(G.t)]);
+    if (key !== manifestKey) { manifestKey = key; drawManifest(); }
+    const tr = P.hover || P.tr;
+    if (!tr) { $('pRead').innerHTML = '<div class="bad">no solution here</div>'; $('pGo').disabled = true; return; }
+    const e = evalPlan(s, tr);
+    $('pRead').innerHTML = `
+      <div><span>DEPART</span>${dateStr(tr.t0)} <span class="dim">T-${days(Math.max(0, tr.t0 - G.t))}</span></div>
+      <div><span>ARRIVE</span>${dateStr(tr.t1)} <span class="dim">${days(tr.t1 - tr.t0)} flight</span></div>
+      <div><span>Δv</span><b>${tr.dv.toFixed(2)}</b>&nbsp;km/s <span class="dim">dep ${tr.dvDep.toFixed(2)} · arr ${tr.dvArr.toFixed(2)} · max ${e.cap.toFixed(1)}</span></div>
+      <div><span>FUEL</span><span class="${e.need > e.c.tank ? 'bad' : ''}">need ${e.need.toFixed(1)}t</span> <span class="dim">load ${e.load.toFixed(0)}t · buy ${e.buyFuel.toFixed(0)}t</span></div>
+      <div><span>COST</span>${money(e.cargoCost + e.fuelCost + e.lift)} <span class="dim">cargo ${money(e.cargoCost)} · fuel ${money(e.fuelCost)} · lift ${money(e.lift)}</span></div>
+      <div><span>SALE</span>${money(e.revenue)} <span class="dim">at today's prices${e.unsold.length ? ' · stays aboard: ' + e.unsold.map(g => GOODS[g].name).join(', ') : ''}</span></div>
+      <div><span>NET</span><b class="${e.net >= 0 ? 'acc' : 'bad'}">${signed(e.net)}</b></div>
+      ${e.why ? `<div class="bad" style="margin-top:4px">${e.why}</div>` : ''}`;
+    $('pGo').disabled = !(P.tr && evalPlan(s, P.tr).ok);
+    drawFlightPlan(s);
+  } else {
+    const p = s.plan;
+    $('pWhere').textContent = s.status === 'scheduled' ? 'scheduled' : 'en route';
+    const passed = p.events.filter(e => e.t <= G.t).length;
+    const key = [s.id, s.status, passed, Math.floor(G.t * 4)].join();
+    if (key === infoKey) return;
+    infoKey = key;
+    $('pInfo').innerHTML = `
+      <div class="dim">${SITES[p.fromSite].name} → ${SITES[p.toSite].name}</div>
+      <div>depart ${dateStr(p.t0)} ${s.status === 'scheduled' ? `<span class="warn">T-${days(p.t0 - G.t)}</span>` : ''}</div>
+      <div>arrive ${dateStr(p.t1)} <span class="dim">ETA ${days(p.t1 - G.t)}</span></div>
+      <div>cargo ${holdStr(s.hold)}</div>
+      <div>Δv ${p.dv.toFixed(2)} km/s · fuel ${p.load.toFixed(0)}t · paid ${money(p.paid)}</div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button id="pFollow">follow</button>
+        ${s.status === 'scheduled' ? '<button id="pCancel">scrub launch (refund)</button>' : ''}
+      </div>
+      <h3 style="margin-top:10px">FLIGHT LOG · mission elapsed time from launch</h3>
+      ${timeline(p.events, p.t0, G.t)}`;
+    $('pFollow').onclick = () => { cam.follow = s.id; cam.ox = cam.oy = 0; };
+    if ($('pCancel')) $('pCancel').onclick = () => scrub(s);
+  }
+}
+
+$('pGo').onclick = () => {
+  const s = ship(P.shipId); if (!s || !P.tr) return;
+  const e = evalPlan(s, P.tr); if (!e.ok) return;
+  const from = SITES[s.site], bought = {};
+  for (const g in P.buy) if (P.buy[g]) { bought[g] = P.buy[g]; trade(from.body, g, P.buy[g]); }
+  if (e.buyFuel) trade(from.body, 'propellant', e.buyFuel);
+  G.money -= e.total;
+  ledger('cargo', -e.cargoCost, s, `${holdStr(bought)} at ${from.name}`);
+  ledger('fuel', -e.fuelCost, s, `${e.buyFuel.toFixed(1)}t at ${from.name}`);
+  ledger('lift', -e.lift, s, `${from.kind === 'station' ? 'docking' : 'launch'} fee at ${from.name}`);
+  const fe = flightEvents(P.tr, P.prevPts, s.site, P.toSite, e.c, e.mass, e.load);
+  s.plan = {
+    events: fe.events, fuelAfter: fe.fuelAfter,
+    fromSite: s.site, toSite: P.toSite, t0: P.tr.t0, t1: P.tr.t1, center: P.tr.center, pts: P.prevPts, dv: P.tr.dv,
+    costs: { cargo: e.cargoCost, fuel: e.fuelCost, lift: e.lift }, need: e.need, load: e.load, fuelBefore: s.fuel, buyFuel: e.buyFuel, paid: e.total, bought, holdBefore: { ...s.hold },
+  };
+  s.hold = manifest(s); s.fuel = e.load; s.status = 'scheduled'; P.buy = {};
+  log(`${s.name} scheduled ${from.name} → ${SITES[P.toSite].name}, launch ${dateStr(P.tr.t0)}`);
+  openPlanner(s.id);
+};
+function scrub(s) {
+  const p = s.plan, b = SITES[p.fromSite].body;
+  G.money += p.paid;
+  if (p.costs) for (const k in p.costs) ledger(k, p.costs[k], s, 'scrubbed launch refund');
+  else ledger('lift', p.paid, s, 'scrubbed launch refund');
+  for (const g in p.bought) trade(b, g, -p.bought[g]);
+  if (p.buyFuel) trade(b, 'propellant', -p.buyFuel);
+  s.fuel = p.fuelBefore; s.hold = p.holdBefore; s.plan = null; s.status = 'docked';
+  log(`${s.name} launch scrubbed, refunded ${money(p.paid)}`);
+  openPlanner(s.id);
+}
+
+// ====================================================================== finances
+// Every money movement goes through ledger(), so G.money === G.startMoney + Σ ledger amounts.
+const CATS = { sale: 'cargo sales', cargo: 'cargo purchases', fuel: 'propellant', lift: 'launch & docking fees', ship: 'new ships' };
+const FIN_COL = { balance: COL.acc, income: '#3987e5', spend: '#d95926' };   // income/spend: dataviz dark slots 1–2, validated on this surface
+const FIN = { open: false, range: 'all', bx: null, barI: null, drawn: 0 };
+const RANGES = { '1y': 365.25, '5y': 1826.25, all: Infinity };
+function ledger(cat, amt, s, note = '') {
+  if (!amt) return;
+  G.ledger.push({ t: G.t, cat, amt, ship: s ? s.id : 0, name: s ? s.name : '', note });
+  if (G.ledger.length > 20000) { const o = G.ledger.shift(); G.startMoney += o.amt; G.startT = o.t; }
+}
+const finStart = () => Math.max(G.startT, G.t - RANGES[FIN.range]);
+
+$('money').onclick = () => { $('fin').style.display = 'flex'; FIN.open = true; drawFinance(); };
+$('finClose').onclick = () => closeModals();
+$('fin').addEventListener('pointerdown', e => { if (e.target.id === 'fin') closeModals(); });
+$('finRange').addEventListener('click', e => { const r = e.target.dataset.range; if (r) { FIN.range = r; drawFinance(); } });
+
+function canvasFor(id, h) {
+  const cv = $(id), w = cv.parentElement.clientWidth;
+  cv.style.width = w + 'px'; cv.style.height = h + 'px'; cv.width = w * DPR; cv.height = h * DPR;
+  const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, w, h);
+  c.font = '10px ui-monospace,Menlo,Consolas,monospace'; c.lineWidth = 1;
+  return [c, w, h];
+}
+function niceTicks(lo, hi, n = 4) {
+  const raw = (hi - lo || 1) / n, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= raw), out = [];
+  for (let v = Math.floor(lo / step) * step; v <= hi + step * 1e-6; v += step) out.push(v);
+  if (out[out.length - 1] < hi) out.push(out[out.length - 1] + step);
+  return out;
+}
+function timeTicks(t0, t1) {   // calendar-aligned ticks, at most ~6
+  const d = new Date(EPOCH + t0 * 864e5), out = [];
+  const k = [1, 2, 3, 6, 12, 24, 60, 120].find(k => (t1 - t0) / 30.44 / k <= 6) || 240;
+  let idx = Math.ceil(((d.getUTCFullYear() - 2040) * 12 + d.getUTCMonth()) / k) * k;
+  for (; ; idx += k) {
+    const y = 2040 + Math.floor(idx / 12), m = idx % 12, t = (Date.UTC(y, m, 1) - EPOCH) / 864e5;
+    if (t > t1) break;
+    if (t >= t0) out.push([t, k >= 12 ? String(y) : `${y}-${String(m + 1).padStart(2, '0')}`]);
+  }
+  return out;
+}
+function showTip(html, e) {
+  const tip = $('finTip'); tip.innerHTML = html; tip.style.display = 'block';
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(innerWidth - r.width - 8, e.clientX + 14) + 'px';
+  tip.style.top = Math.max(8, e.clientY - r.height - 10) + 'px';
+}
+const hideTip = () => { $('finTip').style.display = 'none'; };
+
+function balanceSeries(t0) {   // step function of the balance from t0 to now
+  let b = G.startMoney; const pts = [];
+  for (const e of G.ledger) {
+    if (e.t < t0) { b += e.amt; continue; }
+    if (!pts.length) pts.push([t0, b]);
+    pts.push([e.t, b]); b += e.amt; pts.push([e.t, b]);
+  }
+  if (!pts.length) pts.push([t0, b]);
+  pts.push([G.t, b]);
+  return pts;
+}
+const BAL = { L: 66, R: 12, T: 10, B: 22, H: 170 };
+function drawBalance(ev) {
+  const [c, w, h] = canvasFor('finBal', BAL.H), { L, R, T, B } = BAL;
+  const t0 = finStart(), t1 = Math.max(G.t, t0 + 1), pts = balanceSeries(t0);
+  let lo = 0, hi = 1; for (const p of pts) { lo = Math.min(lo, p[1]); hi = Math.max(hi, p[1]); }
+  const yt = niceTicks(lo, hi); lo = yt[0]; hi = yt[yt.length - 1];
+  const X = t => L + (t - t0) / (t1 - t0) * (w - L - R), Y = v => T + (1 - (v - lo) / (hi - lo)) * (h - T - B);
+  c.textAlign = 'right';
+  for (const v of yt) {
+    c.strokeStyle = v === 0 ? '#2a2e33' : '#14171a'; c.beginPath(); c.moveTo(L, Y(v) + .5); c.lineTo(w - R, Y(v) + .5); c.stroke();
+    c.fillStyle = COL.dim; c.fillText(money(v), L - 6, Y(v) + 3);
+  }
+  c.textAlign = 'center';
+  for (const [t, lab] of timeTicks(t0, t1)) c.fillText(lab, X(t), h - 6);
+  c.strokeStyle = FIN_COL.balance; c.lineWidth = 2; c.lineJoin = 'round'; c.beginPath();
+  pts.forEach((p, i) => i ? c.lineTo(X(p[0]), Y(p[1])) : c.moveTo(X(p[0]), Y(p[1])));
+  c.stroke(); c.lineWidth = 1;
+  if (FIN.bx != null && FIN.bx >= L && FIN.bx <= w - R) {     // crosshair + tooltip
+    const t = t0 + (FIN.bx - L) / (w - L - R) * (t1 - t0);
+    let b = pts[0][1]; for (const p of pts) { if (p[0] > t) break; b = p[1]; }
+    c.strokeStyle = '#3a3f45'; c.beginPath(); c.moveTo(X(t) + .5, T); c.lineTo(X(t) + .5, h - B); c.stroke();
+    c.fillStyle = COL.bg; c.beginPath(); c.arc(X(t), Y(b), 6, 0, 7); c.fill();
+    c.fillStyle = FIN_COL.balance; c.beginPath(); c.arc(X(t), Y(b), 4, 0, 7); c.fill();
+    if (ev) showTip(`<span class="dim">${dateStr(t)}</span><br>balance <b>${money(b)}</b>`, ev);
+  }
+}
+$('finBal').addEventListener('mousemove', e => { FIN.bx = e.offsetX; drawBalance(e); });
+$('finBal').addEventListener('mouseleave', () => { FIN.bx = null; hideTip(); drawBalance(); });
+
+function buckets() {
+  const t0 = finStart(), span = Math.max(1, G.t - t0);
+  const size = [30.4375, 91.3125, 365.25, 1826.25, 3652.5].find(s => span / s <= 36) || 3652.5;
+  const i0 = Math.floor(t0 / size), i1 = Math.floor(G.t / size), bs = [];
+  for (let i = i0; i <= i1; i++) bs.push({ t: i * size, inc: 0, spend: 0, by: {} });
+  for (const e of G.ledger) {
+    if (e.t < t0) continue;
+    const b = bs[Math.floor(e.t / size) - i0]; if (!b) continue;
+    if (e.cat === 'sale') b.inc += e.amt;
+    else { b.spend -= e.amt; b.by[e.cat] = (b.by[e.cat] || 0) - e.amt; }
+  }
+  const name = { 30.4375: 'month', 91.3125: 'quarter', 365.25: 'year', 1826.25: '5 years', 3652.5: 'decade' }[size];
+  const label = b => {
+    const d = new Date(EPOCH + (b.t + size / 2) * 864e5), y = d.getUTCFullYear();
+    return size < 31 ? dateStr(b.t + 15).slice(0, 7) : size < 92 ? `${y} Q${Math.floor(d.getUTCMonth() / 3) + 1}` :
+      size < 366 ? String(y) : `${dateStr(b.t).slice(0, 4)}–${dateStr(b.t + size - 1).slice(0, 4)}`;
+  };
+  return { size, bs, name, label };
+}
+const BARS = { L: 66, R: 12, T: 12, B: 22, H: 190 };
+function drawBars(ev) {
+  const [c, w, h] = canvasFor('finBars', BARS.H), { L, R, T, B } = BARS, K = buckets(), n = K.bs.length;
+  $('finBucket').textContent = K.name;
+  let mi = 0, ms = 0; for (const b of K.bs) { mi = Math.max(mi, b.inc); ms = Math.max(ms, b.spend); }
+  if (!mi && !ms) mi = ms = 1;
+  const ph = h - T - B, k = ph / (mi + ms), y0 = T + mi * k, bw = (w - L - R) / n, barW = Math.max(1, bw - 2);
+  if (FIN.barI != null && K.bs[FIN.barI]) { c.fillStyle = 'rgba(255,255,255,.05)'; c.fillRect(L + FIN.barI * bw, T, bw, ph); }
+  c.textAlign = 'right'; c.fillStyle = COL.dim;
+  if (mi) { c.strokeStyle = '#14171a'; c.beginPath(); c.moveTo(L, T + .5); c.lineTo(w - R, T + .5); c.stroke(); c.fillText('+' + money(mi), L - 6, T + 3); }
+  if (ms) { c.strokeStyle = '#14171a'; c.beginPath(); c.moveTo(L, h - B - .5); c.lineTo(w - R, h - B - .5); c.stroke(); c.fillText('−' + money(ms), L - 6, h - B + 3); }
+  c.fillText('$0', L - 6, y0 + 3);
+  K.bs.forEach((b, i) => {
+    const x = L + i * bw + 1;
+    const hi = b.inc * k, hs = Math.max(0, b.spend) * k;
+    if (hi > 0) { c.fillStyle = FIN_COL.income; c.beginPath(); c.roundRect(x, y0 - hi, barW, hi, [Math.min(4, hi, barW / 2), Math.min(4, hi, barW / 2), 0, 0]); c.fill(); }
+    if (hs > 0) { c.fillStyle = FIN_COL.spend; c.beginPath(); c.roundRect(x, y0, barW, hs, [0, 0, Math.min(4, hs, barW / 2), Math.min(4, hs, barW / 2)]); c.fill(); }
+  });
+  c.strokeStyle = '#3a3f45'; c.beginPath(); c.moveTo(L, y0 + .5); c.lineTo(w - R, y0 + .5); c.stroke();   // baseline
+  c.textAlign = 'center'; c.fillStyle = COL.dim;
+  const every = Math.ceil(n / 7);
+  K.bs.forEach((b, i) => { if (i % every === 0) c.fillText(K.label(b), L + (i + .5) * bw, h - 6); });
+  if (ev && FIN.barI != null && K.bs[FIN.barI]) {
+    const b = K.bs[FIN.barI];
+    const rows = Object.entries(b.by).filter(([, v]) => Math.abs(v) > 0.5).map(([cat, v]) => `<br>&nbsp;&nbsp;<span class="dim">${CATS[cat]}</span> ${money(v)}`).join('');
+    showTip(`<b>${K.label(b)}</b><br><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${FIN_COL.income}"></i> income ${money(b.inc)}` +
+      `<br><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${FIN_COL.spend}"></i> spending ${money(b.spend)}${rows}` +
+      `<br>net <b>${signed(b.inc - b.spend)}</b>`, ev);
+  }
+}
+$('finBars').addEventListener('mousemove', e => {
+  const w = $('finBars').clientWidth, n = buckets().bs.length, i = Math.floor((e.offsetX - BARS.L) / ((w - BARS.L - BARS.R) / n));
+  FIN.barI = i >= 0 && i < n ? i : null; if (FIN.barI == null) hideTip(); drawBars(e);
+});
+$('finBars').addEventListener('mouseleave', () => { FIN.barI = null; hideTip(); drawBars(); });
+
+function drawFinance() {
+  FIN.drawn = performance.now();
+  $('finRange').innerHTML = Object.keys(RANGES).map(r => `<button class="sm ${FIN.range === r ? 'on' : ''}" data-range="${r}">${r === 'all' ? 'all time' : 'last ' + r}</button>`).join(' ');
+  const t0 = finStart(), es = G.ledger.filter(e => e.t >= t0);
+  const by = {}; for (const c in CATS) by[c] = 0;
+  for (const e of es) by[e.cat] += e.amt;
+  const income = by.sale, spend = -(by.cargo + by.fuel + by.lift + by.ship);
+  const sales = es.filter(e => e.cat === 'sale').length;
+  $('finTiles').innerHTML = [
+    ['BALANCE', money(G.money)], ['INCOME', money(income)], ['SPENDING', money(spend)],
+    ['NET', signed(income - spend)], ['DELIVERIES', sales],
+  ].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+  $('finCats').innerHTML = `<tr><th>category</th><th>amount</th><th>share</th></tr>` +
+    `<tr><td>${CATS.sale}</td><td>${signed(by.sale)}</td><td></td></tr>` +
+    ['cargo', 'fuel', 'lift', 'ship'].map(c => `<tr><td>${CATS[c]}</td><td>${signed(by[c])}</td><td class="dim">${spend > 0 ? Math.round(-by[c] / spend * 100) + '%' : ''}</td></tr>`).join('');
+  const ships = {};
+  for (const e of es) if (e.ship) {
+    const x = ships[e.ship] ??= { name: e.name, inc: 0, out: 0, n: 0 };
+    if (e.cat === 'sale') { x.inc += e.amt; x.n++; } else x.out -= e.amt;
+  }
+  const rows = Object.values(ships).sort((a, b) => (b.inc - b.out) - (a.inc - a.out));
+  $('finShips').innerHTML = `<tr><th>ship</th><th>deliveries</th><th>income</th><th>spent</th><th>net</th></tr>` +
+    (rows.map(x => `<tr><td>${esc(x.name)}</td><td>${x.n}</td><td>${money(x.inc)}</td><td>${money(x.out)}</td><td>${signed(x.inc - x.out)}</td></tr>`).join('') ||
+      '<tr><td class="dim" colspan="5">no flights yet</td></tr>');
+  $('finTx').innerHTML = `<tr><th>date</th><th>ship</th><th>what</th><th>amount</th></tr>` +
+    (es.slice(-14).reverse().map(e => `<tr><td class="dim">${dateStr(e.t)}</td><td>${esc(e.name || '—')}</td><td>${CATS[e.cat]} <span class="dim">· ${esc(e.note)}</span></td><td>${signed(e.amt)}</td></tr>`).join('') ||
+      '<tr><td class="dim" colspan="4">no transactions yet</td></tr>');
+  drawBalance(); drawBars();
+}
+
+// ====================================================================== save / loop
+let lastSaved = 0, saveError = '';
+function save() {
+  try { localStorage.setItem('orbital-logistics', JSON.stringify(G)); lastSaved = Date.now(); saveError = ''; }
+  catch (e) { saveError = 'browser save failed: ' + e.message; }
+}
+function load() {
+  try { const s = migrate(JSON.parse(localStorage.getItem('orbital-logistics'))); if (validSave(s)) { G = s; return true; } } catch (e) {}
+  return false;
+}
+// bring older saves up to date instead of discarding them
+function migrate(s) {
+  if (s && s.v === 3) { s.ledger = []; s.startMoney = s.money; s.startT = s.t; s.v = 4; }
+  return s;
+}
+function exportSave() {
+  save();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(G)], { type: 'application/json' }));
+  a.download = `orbital-logistics-${dateStr(G.t)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  log('Game saved to file');
+}
+async function importSave(file) {
+  if (!file) return;
+  if (file.size > 50e6) return alert('That file is too large to be a save.');
+  let s = null;
+  try { s = migrate(JSON.parse(await file.text())); } catch (e) {}
+  if (!validSave(s)) return alert('That file is not a valid Orbital Logistics save.');
+  if (!confirm(`Load the save from ${dateStr(s.t)} (${money(s.money)}, ${s.ships.length} ships)? The current game will be replaced.`)) return;
+  G = s; closePlanner(); closeModals(); save(); log('Loaded game from file');
+}
+$('gameBtn').onclick = () => { $('gameMenu').style.display = 'flex'; drawSaveStatus(); };
+$('gameClose').onclick = () => closeModals();
+$('saveNow').onclick = () => { save(); drawSaveStatus(); };
+$('exportBtn').onclick = exportSave;
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; importSave(f); };
+function drawSaveStatus() {
+  $('saveStatus').innerHTML = saveError ? `<span class="bad">${esc(saveError)}</span>` :
+    lastSaved ? `last saved ${Math.round((Date.now() - lastSaved) / 1000)}s ago · game date ${dateStr(G.t)}` : 'not saved yet';
+}
+function closeModals() { for (const id of ['gameMenu', 'fin', 'help']) $(id).style.display = 'none'; FIN.open = false; $('finTip').style.display = 'none'; }
+// reject saves from older versions or that have been corrupted/edited into an inconsistent state
+function validSave(s) {
+  const num = v => typeof v === 'number' && isFinite(v);
+  if (!s || s.v !== SAVE_VERSION || !num(s.t) || !num(s.money) || !num(s.nextName) || !Array.isArray(s.ships) || !Array.isArray(s.log)) return false;
+  if (!num(s.startMoney) || !num(s.startT) || !Array.isArray(s.ledger)) return false;
+  for (const e of s.ledger) if (!e || !num(e.t) || !num(e.amt) || !(e.cat in CATS) || !num(e.ship) || typeof e.name !== 'string' || typeof e.note !== 'string') return false;
+  for (const b of PLANETS) for (const g in GOODS) if (!num(s.market?.[b]?.[g])) return false;
+  for (const l of s.log) if (!l || !num(l.t) || typeof l.msg !== 'string') return false;
+  for (const x of s.ships) {
+    if (!x || !num(x.id) || typeof x.name !== 'string' || !CLASSES[x.cls] || !SITES[x.site] || !num(x.fuel)) return false;
+    if (!['docked', 'scheduled', 'transit'].includes(x.status) || !x.hold || typeof x.hold !== 'object') return false;
+    for (const g in x.hold) if (!GOODS[g] || !num(x.hold[g])) return false;
+    if (x.logbook !== undefined && !(Array.isArray(x.logbook) && x.logbook.every(b => b && SITES[b.from] && SITES[b.to] &&
+      [b.t0, b.t1, b.dv, b.paid, b.rev].every(num) && Array.isArray(b.events)))) return false;
+    const p = x.plan;
+    if (x.status !== 'docked' && !(p && SITES[p.fromSite] && SITES[p.toSite] && ['sun', 'earth'].includes(p.center) &&
+      num(p.t0) && num(p.t1) && Array.isArray(p.pts) && p.pts.length >= 4 && p.pts.every(num) && Array.isArray(p.events))) return false;
+  }
+  return true;
+}
+if (!load()) newGame();
+focus('inner');
+setInterval(save, 5000); addEventListener('beforeunload', save);
+
+let last = performance.now(), lastUI = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (speed) step(dt * SPEEDS[speed]);
+  // keep the porkchop chart current as time advances
+  if (P.mode === 'plan' && P.grid && now - P.gridAt > 300) {
+    const g = P.grid;
+    if (G.t - g.tBase > (g.R.dep[1] - g.R.dep[0]) / g.NX) computeGrid();
+  }
+  render(); syncZoom();
+  if (now - lastUI > 150) {
+    lastUI = now; drawPanels(); drawTop();
+    if (FIN.open && now - FIN.drawn > 500) drawFinance();
+    if ($('gameMenu').style.display === 'flex') drawSaveStatus();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
