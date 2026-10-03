@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#050607">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Orbital Logistics</title>
 <style>
 :root{
@@ -92,6 +96,50 @@ th{font-size:9px;letter-spacing:.1em;color:var(--dim)}
 #gameMenu button{margin:2px 4px 2px 0}
 #help{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:5}
 #help .panel{max-width:600px;line-height:1.6}
+canvas#view,#pork{touch-action:none;-webkit-user-select:none;user-select:none}
+.fin canvas{touch-action:pan-y}
+body{-webkit-tap-highlight-color:transparent}
+.touch,#tabs{display:none}
+
+/* ---- touch screens: bigger targets */
+@media (pointer:coarse){
+  button{min-height:30px;padding:4px 9px}
+  button.sm{min-width:30px;line-height:20px;padding:2px 6px}
+  select{min-height:30px}
+  input[type=checkbox]{width:18px;height:18px;vertical-align:-4px}
+  .touch{display:inline-block}
+}
+
+/* ---- phones: full-screen map, one panel at a time as a bottom sheet chosen by the tab bar */
+@media (max-width:800px){
+  :root{--tabh:calc(46px + env(safe-area-inset-bottom))}
+  html,body{overscroll-behavior:none}
+  #top{top:0;left:0;right:0;flex-wrap:wrap;gap:4px 8px;white-space:normal;border-width:0 0 1px;
+    padding:max(6px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) 6px max(8px,env(safe-area-inset-left))}
+  /* three rows: date · money · help · game / speeds / views · pause */
+  #top>b,#top .sep,#top>span[style]{display:none}
+  #helpBtn{margin-left:auto}
+  #speeds{order:6;flex-basis:100%}
+  #views{order:7}
+  #top label{order:8}
+  .col,#left,#right{display:block;top:auto;left:0;right:0;width:auto;bottom:var(--tabh)}
+  .col>.panel{max-height:52vh;max-height:52dvh;overflow-y:auto;overscroll-behavior:contain;border-width:1px 0 0;
+    padding-left:max(11px,env(safe-area-inset-left));padding-right:max(11px,env(safe-area-inset-right))}
+  #fleet,#planet,#log{display:none}
+  body[data-tab=fleet] #fleet,body[data-tab=planet] #planet,body[data-tab=log] #log{display:block}
+  body:not([data-tab=plan]) #planner{display:none!important}
+  #hint,#zoom{display:none}
+  #log div{white-space:normal}
+  td:first-child{white-space:normal}
+  #tabs{display:flex;position:fixed;left:0;right:0;bottom:0;height:var(--tabh);padding:0 0 env(safe-area-inset-bottom);
+    background:#08090b;border-top:1px solid var(--line);z-index:4;-webkit-user-select:none;user-select:none}
+  #tabs button{flex:1;border:0;border-top:2px solid transparent;min-height:0;font-size:11px;letter-spacing:.1em;color:var(--dim)}
+  #tabs button.on{color:var(--acc);border-top-color:var(--acc)}
+  #tabs button:disabled{opacity:.3}
+  #gameMenu .panel{width:auto;max-width:calc(100vw - 24px)}
+  #help .panel{margin:12px;max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow:auto}
+  .fin{width:100vw;max-height:100vh;max-height:100dvh;border:0;padding-top:max(9px,env(safe-area-inset-top))}
+}
 </style>
 </head>
 <body>
@@ -144,6 +192,10 @@ th{font-size:9px;letter-spacing:.1em;color:var(--dim)}
   <div id="hint">wheel zoom · drag pan · click planets & ships<br>1 inner · 0 outer · space pause · +/- speed · ? help</div>
 </div>
 
+<nav id="tabs">
+  <button data-tab="fleet">FLEET</button><button data-tab="planet">PLANET</button><button data-tab="plan" id="tabPlan">SHIP</button><button data-tab="log">LOG</button>
+</nav>
+
 <div id="gameMenu" class="modal"><div class="panel">
   <div class="ph"><h2 style="margin:0">GAME</h2><button id="gameClose">×</button></div>
   <div>Your game <b>autosaves every 5 seconds</b> in this browser.</div>
@@ -183,7 +235,10 @@ th{font-size:9px;letter-spacing:.1em;color:var(--dim)}
   <b>Costs:</b> cargo, propellant (local price — very cheap at the Moon and the gas-giant stations), and lift per tonne
   launched. Earth, Mars, Venus and the giants allow aerobraking, so arriving there is cheap.<br><br>
   <b>Controls:</b> wheel zoom · drag pan · click a body or ship to follow · 1 inner system · 0 outer system ·
-  space pause · +/- speed · Esc close.
+  space pause · +/- speed · Esc close.<br>
+  <b>On a phone:</b> drag to pan, pinch to zoom, tap planets & ships. The tabs at the bottom switch between your fleet,
+  the selected planet, the selected ship and the log — tap the open tab again to hide it and see the whole map.
+  Tap or drag on the transfer chart to preview a window; “max” fills the hold.
   <div style="margin-top:10px"><button id="helpClose">close</button></div>
 </div></div>
 
@@ -585,9 +640,19 @@ function focusSpan(f) {
   if (f === 'moon') return 40000 / AU;
   const b = BODIES[f]; return Math.max(b.rLow * 1.6, b.R * 8) / AU;
 }
+// phones get a full-screen map with the panels as a bottom sheet (see the max-width:800px CSS)
+const MQ = matchMedia('(max-width:800px)'), mobile = () => MQ.matches;
+// the part of the screen the map shows through: between the top bar and the open sheet / tab bar on phones
+function viewRect() {
+  if (!mobile()) return { cx: W / 2, cy: H / 2, w: W - 720, h: H, top: 0, bottom: H };
+  const top = $('top').getBoundingClientRect().bottom;
+  const bottom = Math.min($('tabs').getBoundingClientRect().top, $('left').getBoundingClientRect().top, $('right').getBoundingClientRect().top);
+  return { cx: W / 2, cy: (top + bottom) / 2, w: W, h: bottom - top, top, bottom };
+}
 function focus(f) {
   cam.follow = f; cam.ox = cam.oy = 0;
-  cam.scale = Math.max(200, Math.min(W - 720, H)) / 2 / focusSpan(f);
+  const V = viewRect();
+  cam.scale = (mobile() ? Math.max(120, Math.min(V.w, V.h) - 16) : Math.max(200, Math.min(V.w, V.h))) / 2 / focusSpan(f);
   if (PLANETS.includes(f)) PL.body = f;
   drawTop();
 }
@@ -600,8 +665,8 @@ function followPos() {
   }
   return state(BODIES[cam.follow] ? cam.follow : 'sun', G.t);
 }
-let CX = 0, CY = 0;
-const toS = (x, y) => [W / 2 + (x - CX) * cam.scale, H / 2 - (y - CY) * cam.scale];
+let CX = 0, CY = 0, VX = 0, VY = 0, VB = 0;   // camera centre (AU), its screen position, bottom of the visible map
+const toS = (x, y) => [VX + (x - CX) * cam.scale, VY - (y - CY) * cam.scale];
 
 function shipPos(s, t) {
   const p = s.plan, N = p.pts.length / 2 - 1;
@@ -638,6 +703,7 @@ function render() {
   ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, W, H);
   ctx.font = '10px ui-monospace,Menlo,Consolas,monospace'; ctx.lineWidth = 1;
   const fp = followPos(); CX = fp.x + cam.ox; CY = fp.y + cam.oy;
+  const V = viewRect(); VX = V.cx; VY = V.cy; VB = V.bottom;
   hits.length = 0;
 
   // orbits
@@ -667,7 +733,8 @@ function render() {
     if (X < -r - 80 || X > W + r + 80 || Y < -r - 80 || Y > H + r + 80) continue;
     ctx.fillStyle = COL[id]; ctx.beginPath(); ctx.arc(X, Y, r, 0, 7); ctx.fill();
     if (id === 'saturn') ring(X, Y, r * 2.2, COL.saturn);
-    if (id !== 'sun') hits.push({ x: X, y: Y, r: Math.max(r, 9), act: () => focus(id) });
+    // the Moon sits on top of Earth until zoomed in; don't let it steal Earth's taps
+    if (id !== 'sun' && !(id === 'moon' && moonOrbitPx < 14)) hits.push({ x: X, y: Y, r: Math.max(r, 9), act: () => { focus(id); if (mobile()) setTab('planet'); } });
     // skip labels that would pile onto the Sun or Earth
     if (id === 'moon' && moonOrbitPx < 14) continue;
     if (b.a && !b.parent && b.a * cam.scale < 16) continue;
@@ -692,7 +759,7 @@ function render() {
     ctx.lineTo(X + 4 * Math.cos(a - 2.5), Y + 4 * Math.sin(a - 2.5));
     ctx.fill();
     label(s.name.toUpperCase(), X + 9, Y + 12, sel ? '#fff' : COL.dim);
-    hits.push({ x: X, y: Y, r: 10, act: () => { openPlanner(s.id); cam.follow = s.id; cam.ox = cam.oy = 0; } });
+    hits.push({ x: X, y: Y, r: 10, act: () => { selectShip(s.id); cam.follow = s.id; cam.ox = cam.oy = 0; } });
   }
 
   // scale bar
@@ -701,7 +768,7 @@ function render() {
   if (target < 0.05) { len = target * AU; unit = 'km'; }
   const mag = 10 ** Math.floor(Math.log10(len)), nice = [1, 2, 5, 10].map(m => m * mag).filter(v => v <= len).pop();
   const px = (unit === 'km' ? nice / AU : nice) * cam.scale;
-  const bx = 334 + px, by = H - 58;   // just above the zoom slider
+  const bx = (mobile() ? 12 : 334) + px, by = mobile() ? VB - 10 : H - 58;   // just above the zoom slider (bottom left of the map on phones)
   ctx.strokeStyle = COL.dim; ctx.beginPath(); ctx.moveTo(bx - px, by - 3); ctx.lineTo(bx - px, by); ctx.lineTo(bx, by); ctx.lineTo(bx, by - 3); ctx.stroke();
   label(`${nice.toLocaleString()} ${unit}`, bx - px, by - 6, COL.dim, 'left');
 }
@@ -737,31 +804,58 @@ function drawSites(id, X, Y, r) {
 }
 
 // ====================================================================== map input
-let drag = null;
-cv.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, moved: false }; });
-addEventListener('mousemove', e => {
-  if (!drag) return;
-  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-  if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true;
-  cam.ox -= dx / cam.scale; cam.oy += dy / cam.scale;
-  drag.x = e.clientX; drag.y = e.clientY;
+// pointer events cover mouse, pen and touch: one pointer drags (or taps), two pointers pinch-zoom
+let drag = null, pinch = null;
+const ptrs = new Map();
+function zoomAt(sx, sy, ns) {   // zoom keeping the world point under screen (sx, sy) fixed
+  ns = clampZoom(ns);
+  const fp = followPos(), cx = fp.x + cam.ox, cy = fp.y + cam.oy;
+  const wx = cx + (sx - VX) / cam.scale, wy = cy - (sy - VY) / cam.scale;
+  cam.ox = wx - (sx - VX) / ns - fp.x;
+  cam.oy = wy + (sy - VY) / ns - fp.y;
+  cam.scale = ns;
+}
+const pinchState = () => { const [a, b] = [...ptrs.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)) }; };
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size === 1) drag = { x: e.clientX, y: e.clientY, moved: false, touch: e.pointerType !== 'mouse' };
+  else if (ptrs.size === 2) { pinch = pinchState(); if (drag) drag.moved = true; }
 });
-addEventListener('mouseup', e => {
-  if (drag && !drag.moved) {
+cv.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && ptrs.size >= 2) {
+    const q = pinchState();
+    cam.ox -= (q.x - pinch.x) / cam.scale; cam.oy += (q.y - pinch.y) / cam.scale;
+    zoomAt(q.x, q.y, cam.scale * q.d / pinch.d);
+    pinch = q;
+  } else if (drag) {
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > (drag.touch ? 8 : 2)) drag.moved = true;
+    if (!drag.moved) return;   // small finger jitter during a tap shouldn't nudge the map
+    cam.ox -= dx / cam.scale; cam.oy += dy / cam.scale;
+    drag.x = e.clientX; drag.y = e.clientY;
+  }
+});
+function pointerEnd(e) {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (e.type === 'pointerup' && drag && !drag.moved && ptrs.size === 0) {
+    const slop = drag.touch ? 12 : 0;
     let best = null, bd = 1e9;
-    for (const h of hits) { const d = Math.hypot(h.x - e.clientX, h.y - e.clientY); if (d < h.r && d < bd) { bd = d; best = h; } }
+    for (const h of hits) { const d = Math.hypot(h.x - e.clientX, h.y - e.clientY); if (d < h.r + slop && d < bd) { bd = d; best = h; } }
     if (best) best.act();
   }
-  drag = null;
-});
+  if (ptrs.size === 1) {   // pinch ended with one finger still down: keep dragging with it, never tap
+    const [p] = ptrs.values(); pinch = null; drag = { x: p.x, y: p.y, moved: true, touch: true };
+  } else if (!ptrs.size) { drag = pinch = null; }
+}
+cv.addEventListener('pointerup', pointerEnd);
+cv.addEventListener('pointercancel', pointerEnd);
 cv.addEventListener('wheel', e => {
   e.preventDefault();
-  const ns = clampZoom(cam.scale * Math.exp(-e.deltaY * 0.0015));
-  const wx = CX + (e.clientX - W / 2) / cam.scale, wy = CY - (e.clientY - H / 2) / cam.scale;
-  const fp = followPos();
-  cam.ox = wx - (e.clientX - W / 2) / ns - fp.x;
-  cam.oy = wy + (e.clientY - H / 2) / ns - fp.y;
-  cam.scale = ns;
+  zoomAt(e.clientX, e.clientY, cam.scale * Math.exp(-e.deltaY * 0.0015));
 }, { passive: false });
 // zoom slider: log scale from the whole outer system down to a single planet's surface
 const ZMIN = 5, ZMAX = 5e7;
@@ -790,14 +884,38 @@ addEventListener('keydown', e => {
   else if (k === 'Escape') { if (['gameMenu', 'fin', 'help'].some(id => $(id).style.display === 'flex')) closeModals(); else closePlanner(); }
 });
 
+// Panels are redrawn several times a second, so a plain click can lose its button between press and release.
+// Mice act on press, as before; touches act on release, and only if the finger didn't move (that was a scroll).
+function onTap(el, fn) {
+  let d = null;
+  el.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') { if (e.button === 0) fn(e.target, e); return; }
+    d = { x: e.clientX, y: e.clientY, t: e.target };
+  });
+  el.addEventListener('pointerup', e => { if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10) fn(d.t, e); d = null; });
+  el.addEventListener('pointercancel', () => { d = null; });
+}
+
+// ====================================================================== phone tabs
+function setTab(t) {
+  if (t === 'plan' && !P.shipId) t = 'fleet';
+  document.body.dataset.tab = t || '';
+  for (const b of $('tabs').children) b.classList.toggle('on', b.dataset.tab === t);
+}
+onTap($('tabs'), t => { const k = t.dataset.tab; if (k) setTab(document.body.dataset.tab === k ? '' : k); });
+function selectShip(id) { openPlanner(id); if (mobile()) setTab('plan'); }
+
 // ====================================================================== top bar
 function setSpeed(i) { if (speed) lastSpeed = speed; speed = i; if (i) lastSpeed = i; drawTop(); }
+let topKey = '';
 function drawTop() {
-  $('speeds').innerHTML = SPEEDS.map((v, i) => `<button data-sp="${i}" class="${i === speed ? 'on' : ''}">${i ? v + 'd/s' : 'II'}</button>`).join(' ');
+  const key = [speed, cam.follow, mobile()].join();
+  if (key === topKey) return;   // rebuild only on change so buttons stay tappable
+  topKey = key;
+  $('speeds').innerHTML = SPEEDS.map((v, i) => `<button data-sp="${i}" class="${i === speed ? 'on' : ''}">${i ? v + (mobile() ? '' : 'd/s') : 'II'}</button>`).join(' ') + (mobile() ? ' <span class="dim">d/s</span>' : '');
   $('views').innerHTML = ['inner', 'outer'].map(v => `<button data-fo="${v}" class="${cam.follow === v ? 'on' : ''}">${v}</button>`).join(' ');
 }
-$('top').addEventListener('pointerdown', e => {
-  const t = e.target;
+onTap($('top'), t => {
   if (t.dataset.sp) setSpeed(+t.dataset.sp);
   if (t.dataset.fo) focus(t.dataset.fo);
 });
@@ -822,8 +940,8 @@ function siteOptions(ok, label = k => SITES[k].name, sel) {
     return `<optgroup label="${BODIES[b].name}">${opts.map(k => `<option value="${k}" ${k === sel ? 'selected' : ''}>${label(k)}</option>`).join('')}</optgroup>`;
   }).join('');
 }
-$('fleetList').addEventListener('pointerdown', e => {
-  const el = e.target.closest('[data-ship]'); if (el) openPlanner(+el.dataset.ship);
+onTap($('fleetList'), t => {
+  const el = t.closest('[data-ship]'); if (el) selectShip(+el.dataset.ship);
 });
 
 function shipRow(s) {
@@ -853,11 +971,10 @@ function shipRow(s) {
 
 // ====================================================================== planet panel
 const PL = { body: 'earth' };
-$('pbodies').addEventListener('pointerdown', e => { const b = e.target.dataset.body; if (b) focus(b); });
-$('planetBody').addEventListener('pointerdown', e => {
-  const t = e.target;
-  if (t.dataset.route) { setDest(t.dataset.route); }
-  if (t.dataset.ship) openPlanner(+t.dataset.ship);
+onTap($('pbodies'), t => { const b = t.dataset.body; if (b) focus(b); });
+onTap($('planetBody'), t => {
+  if (t.dataset.route) { setDest(t.dataset.route); if (mobile()) setTab('plan'); }
+  if (t.dataset.ship) selectShip(+t.dataset.ship);
 });
 function drawPlanet() {
   const b = PL.body, E = ECON[b], B = BODIES[b];
@@ -890,6 +1007,7 @@ function drawPanels() {
   $('date').textContent = dateStr(G.t);
   $('money').textContent = money(G.money);
   $('buyBtn').disabled = G.money < CLASSES[$('buyCls').value].price;
+  $('tabPlan').disabled = !P.shipId;
   $('fleetList').innerHTML = G.ships.map(shipRow).join('');
   drawPlanet();
   $('logList').innerHTML = G.log.slice(-6).reverse().map(l => `<div><span class="dim">${dateStr(l.t)}</span> ${esc(l.msg)}</div>`).join('');
@@ -899,8 +1017,15 @@ function drawPanels() {
 // ====================================================================== planner
 const P = { shipId: null, mode: null, from: null, to: null, toSite: null, buy: {}, grid: null, tr: null, prevPts: null, hover: null, gridAt: 0, showPlan: true, bookOpen: -1, evKey: '', ev: null };
 const pork = $('pork'), pctx = pork.getContext('2d');
-const PW = 352, PH = 180, PLm = 34, PB = 16;   // porkchop size + axis margins
-pork.width = PW * DPR; pork.height = PH * DPR; pork.style.width = PW + 'px'; pork.style.height = PH + 'px';
+let PW = 352;
+const PH = 180, PLm = 34, PB = 16;   // porkchop size + axis margins
+function sizePork() {   // full width of the sheet on phones, fixed on desktop
+  PW = mobile() ? Math.max(240, Math.min(560, innerWidth - 26)) : 352;
+  pork.width = PW * DPR; pork.height = PH * DPR; pork.style.width = PW + 'px'; pork.style.height = PH + 'px';
+  drawPork();
+}
+sizePork();
+addEventListener('resize', () => { sizePork(); topKey = ''; });
 
 function openPlanner(id) {
   const s = ship(id); if (!s) return;
@@ -925,7 +1050,10 @@ function openPlanner(id) {
   }
   drawPlannerText();
 }
-function closePlanner() { P.shipId = null; P.mode = null; P.tr = null; $('planner').style.display = 'none'; }
+function closePlanner() {
+  P.shipId = null; P.mode = null; P.tr = null; $('planner').style.display = 'none';
+  if (document.body.dataset.tab === 'plan') setTab('fleet');
+}
 $('pClose').onclick = closePlanner;
 $('pTo').onchange = () => setDest($('pTo').value);
 $('pFill').onchange = () => { drawPork(); drawPlannerText(); };
@@ -960,15 +1088,15 @@ function drawManifest() {
   for (const g in s.hold) h += `<tr><td>${GOODS[g].name} <span class="dim">aboard</span></td><td></td><td>${there(g)}</td><td>${s.hold[g]}</td></tr>`;
   for (const g of SITES[s.site].goods)
     h += `<tr><td>${GOODS[g].name}</td><td>${price(from, g).toFixed(1)}</td><td>${there(g)}</td>
-      <td><button class="sm" data-g="${g}" data-d="-5">−</button> ${String(P.buy[g] || 0).padStart(2, ' ')} <button class="sm" data-g="${g}" data-d="5">+</button></td></tr>`;
+      <td><button class="sm" data-g="${g}" data-d="-5">−</button> ${String(P.buy[g] || 0).padStart(2, ' ')} <button class="sm" data-g="${g}" data-d="5">+</button> <button class="sm touch" data-g="${g}" data-d="max">max</button></td></tr>`;
   $('pManifest').innerHTML = h + '</table>';
 }
-$('pManifest').addEventListener('pointerdown', e => {
-  const t = e.target; if (!t.dataset.g) return;
+onTap($('pManifest'), (t, e) => {
+  if (!t.dataset.g) return;
   const s = ship(P.shipId), c = CLASSES[s.cls], g = t.dataset.g, cur = P.buy[g] || 0;
   const free = c.cargo - tons(manifest(s));
-  const d = +t.dataset.d;
-  P.buy[g] = d > 0 ? cur + Math.min(free, e.shiftKey ? free : d) : Math.max(0, e.shiftKey ? 0 : cur + d);
+  const all = e.shiftKey || t.dataset.d === 'max', d = t.dataset.d === 'max' ? 1 : +t.dataset.d;   // shift-click / "max" fills or empties
+  P.buy[g] = d > 0 ? cur + Math.min(free, all ? free : d) : Math.max(0, all ? 0 : cur + d);
   drawManifest(); drawDestOptions(); drawPork(); drawPlannerText();
 });
 
@@ -1008,11 +1136,19 @@ function porkXY(e) {
   if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return null;
   return { t0: g.tBase + g.R.dep[0] + fx * (g.R.dep[1] - g.R.dep[0]), tof: g.R.tof[0] + fy * (g.R.tof[1] - g.R.tof[0]) };
 }
-pork.addEventListener('mousemove', e => {
-  const q = porkXY(e); P.hover = q ? transfer(P.from, P.to, q.t0, q.tof) : null; drawPork(); drawPlannerText();
+// mouse: hover previews, click picks. touch: press and drag previews, lifting the finger picks
+let porkDown = false;
+const porkHover = e => { const q = porkXY(e); P.hover = q ? transfer(P.from, P.to, q.t0, q.tof) : null; drawPork(); drawPlannerText(); };
+pork.addEventListener('pointerdown', e => { porkDown = true; pork.setPointerCapture(e.pointerId); porkHover(e); });
+pork.addEventListener('pointermove', e => { if (porkDown || e.pointerType === 'mouse') porkHover(e); });
+pork.addEventListener('pointerup', e => {
+  if (!porkDown) return;
+  porkDown = false;
+  const q = porkXY(e); if (q) setSel(q.t0, q.tof);
+  if (e.pointerType !== 'mouse') { P.hover = null; drawPork(); drawPlannerText(); }
 });
-pork.addEventListener('mouseleave', () => { P.hover = null; drawPork(); drawPlannerText(); });
-pork.addEventListener('click', e => { const q = porkXY(e); if (q) setSel(q.t0, q.tof); });
+pork.addEventListener('pointercancel', () => { porkDown = false; P.hover = null; drawPork(); drawPlannerText(); });
+pork.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !porkDown) { P.hover = null; drawPork(); drawPlannerText(); } });
 
 function drawPork() {
   const g = P.grid; if (!g || P.mode !== 'plan') return;
@@ -1257,8 +1393,10 @@ function drawBalance(ev) {
     if (ev) showTip(`<span class="dim">${dateStr(t)}</span><br>balance <b>${money(b)}</b>`, ev);
   }
 }
-$('finBal').addEventListener('mousemove', e => { FIN.bx = e.offsetX; drawBalance(e); });
-$('finBal').addEventListener('mouseleave', () => { FIN.bx = null; hideTip(); drawBalance(); });
+// pointer events so a tap (or a sideways drag) shows the tooltip on touch screens; it stays until the next tap
+$('finBal').addEventListener('pointermove', e => { FIN.bx = e.offsetX; drawBalance(e); });
+$('finBal').addEventListener('pointerdown', e => { FIN.bx = e.offsetX; drawBalance(e); });
+$('finBal').addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { FIN.bx = null; hideTip(); drawBalance(); } });
 
 function buckets() {
   const t0 = finStart(), span = Math.max(1, G.t - t0);
@@ -1309,11 +1447,13 @@ function drawBars(ev) {
       `<br>net <b>${signed(b.inc - b.spend)}</b>`, ev);
   }
 }
-$('finBars').addEventListener('mousemove', e => {
+function barsPoint(e) {
   const w = $('finBars').clientWidth, n = buckets().bs.length, i = Math.floor((e.offsetX - BARS.L) / ((w - BARS.L - BARS.R) / n));
   FIN.barI = i >= 0 && i < n ? i : null; if (FIN.barI == null) hideTip(); drawBars(e);
-});
-$('finBars').addEventListener('mouseleave', () => { FIN.barI = null; hideTip(); drawBars(); });
+}
+$('finBars').addEventListener('pointermove', barsPoint);
+$('finBars').addEventListener('pointerdown', barsPoint);
+$('finBars').addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { FIN.barI = null; hideTip(); drawBars(); } });
 
 function drawFinance() {
   FIN.drawn = performance.now();
@@ -1410,7 +1550,9 @@ function validSave(s) {
   return true;
 }
 if (!load()) newGame();
+setTab('fleet');
 focus('inner');
+MQ.addEventListener('change', () => { sizePork(); topKey = ''; drawTop(); if (typeof cam.follow === 'string') focus(cam.follow); });
 setInterval(save, 5000); addEventListener('beforeunload', save);
 
 let last = performance.now(), lastUI = 0;

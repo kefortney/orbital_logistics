@@ -10,6 +10,7 @@ A browser-based space freight trading game. You run mission control for a small 
 - **A fleet to manage.** Fly chemical-nuclear *Haulers* (40 t cargo) for the inner system and fusion *Clippers* (20 t) for the outer planets, and buy more ships as you grow.
 - **Flight timelines.** Each flight lists its burns, sphere-of-influence crossings, perihelion and aphelion, and planetary orbit crossings.
 - **A finance dashboard.** Track your balance history, income and spending, profit per ship, and every transaction.
+- **Playable on phones.** The phone layout has a full-screen map, bottom-sheet panels, touch and pinch controls, and larger tap targets.
 - **Saves.** The game autosaves to browser storage every 5 seconds, and you can export or import a save as a JSON file.
 
 ## Running it
@@ -23,7 +24,9 @@ cd orbital_logistics
 python3 -m http.server 8000   # then visit http://localhost:8000
 ```
 
-The layout is designed for a desktop browser.
+It works in desktop browsers and on phones. On narrow screens the panels move into a bottom tab bar, and the map supports touch panning and pinch-to-zoom.
+
+To host it, enable GitHub Pages on the `main` branch, root folder.
 
 ## How to play
 

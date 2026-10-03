@@ -97,6 +97,27 @@ Each launch site only stocks some of its world's goods. Check the site list in t
 | `?` | Help |
 | `Esc` | Close the dialog or planner |
 
+### On a phone
+
+The game works on phones and tablets in a browser. On narrow screens the map fills the screen, and the panels appear as a sheet above a tab bar at the bottom:
+
+| Tab | Shows |
+|-----|-------|
+| **FLEET** | The flight board and the buy-ship controls |
+| **PLANET** | The selected world's sites and prices. Tapping a planet on the map opens this tab. |
+| **SHIP** | The planner or flight log for the selected ship. Tapping a ship opens this tab. |
+| **LOG** | Recent events |
+
+Tap the open tab again to hide the sheet and see the whole map.
+
+- **Drag** to pan and **pinch** to zoom the map.
+- On the transfer chart, **tap** a spot to pick that window, or **drag** across the chart to preview windows and lift your finger on the one you want.
+- Use **max** next to a cargo row to fill the hold, since there is no shift key.
+- On the finance charts, tap or drag sideways to see values.
+- To play full screen, use your browser's **Add to Home Screen** option.
+
+Browser saves are separate for each device. To move a game between your phone and computer, use **save to file** and **load from file**.
+
 ## Saving
 
 The game **autosaves every 5 seconds** to your browser's local storage. Open **game / save** to:
