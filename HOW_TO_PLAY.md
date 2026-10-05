@@ -6,7 +6,7 @@ You run mission control for a freight company. The game starts on 1 January 2040
 
 Every world **sells** some goods cheaply and **buys** others at a premium. Buy low, fly, and sell high. When a ship arrives, any cargo the destination buys is **sold automatically**. Anything that world doesn't buy stays aboard for the next leg.
 
-There is no fixed win condition. Two rival companies trade by the same rules. The aim is to build a bigger company than theirs, measured by **net worth**: cash, minus debt, plus your ships and bases at resale value.
+There is no fixed win condition. Two rival companies trade by the same rules. The aim is to build a bigger company than theirs, measured by **net worth**: cash, minus debt, plus your ships and bases at resale value, plus cargo in flight at what you paid for it.
 
 ## The screen
 
@@ -76,6 +76,7 @@ Press **markets** in the top bar.
 | **prices** | Every good at every world. **Green** prices are goods you can load there, and **amber** prices are goods the world buys. ▲/▼ marks a price off its normal level. Click a good to chart its price history at every world (log scale; hover to compare). Recent news is listed below. |
 | **routes** | The most profitable runs at today's prices for a Hauler or a Clipper, from anywhere or from one world. It shows the load, flight time, Δv, profit per trip, profit per 30 days, and which of your ships are already there. These are estimates for a Hohmann transfer, and the planner's chart shows the real windows. |
 | **contracts** | Your contracts and the open offers (see below). |
+| **rivals** | How you're doing against the other companies (see [Rivals](#rivals)). |
 
 ### Goods
 
@@ -107,7 +108,7 @@ You start with a **$4.00M loan due in two years**. Interest is charged monthly. 
 
 ## Bases
 
-Build bases from the planet panel. Press **build…** next to a site. Each costs a one-off price plus monthly upkeep:
+Build bases from the planet panel. Press **build…** next to a site, pick a base, and give it a name (or keep the suggested one, like "Kennedy Depot"). Click a base's tag in the planet panel to rename it later. Each base costs a one-off price plus monthly upkeep:
 
 | Base | Effect | Cost | Upkeep |
 |------|--------|------|--------|
@@ -117,9 +118,31 @@ Build bases from the planet panel. Press **build…** next to a site. Each costs
 
 A depot at Kennedy saves up to about $400k on every Hauler launch. A warehouse at the Moon lets you stockpile helium-3 and sell it when Earth's price peaks.
 
+## Accidents
+
+Accidents are **off** by default. Turn them on or off at any time with the **accidents** checkbox in the **game / save** menu. When they're on, rivals face the same risks.
+
+| What | Risk |
+|------|------|
+| **Launch** | 0.2% from a surface site, 0.3% from Venus's aerostat, 0.05% undocking from a station |
+| **Flight** | 0.4% per year in flight, so long outer-planet runs are riskier |
+| **Landing** | Same as launch, by the kind of site you arrive at |
+| **Bases** | 2% a year on a surface, 3% on Venus's aerostat, 1% at a station |
+
+A lost ship takes its cargo with it, and a destroyed warehouse loses everything stored in it. With accidents on, the planner shows the **RISK** of each flight before you launch: about 0.4% for an Earth–Moon hop, 0.7% for a run to Mars, and nearly 4% for a 9-year trip to Neptune. Accidents are logged and trigger auto-pause. The rivals screen counts each company's ships lost.
+
 ## Rivals
 
-**Ceres Freight** (purple) and **Helios Haulage** (pink) fly the same ships under the same rules: same prices, fuel, fees, and transfer windows. Each idle ship takes the most profitable run per day it can find. Their trades move the same markets yours do, and they buy more ships as they earn. Their ships appear on the map as small coloured arrows. Click one to see where it's going, or press **rivals** in the top bar to hide them. The **standings** on the finance dashboard compare everyone's net worth.
+**Ceres Freight** (violet) and **Helios Haulage** (rose) fly the same ships under the same rules: same prices, fuel, fees, and transfer windows. Each idle ship weighs every destination, a few transfer windows (fast with a light load or slow with a full one), and every good it could carry. It takes the run with the best profit per day, counting how good the destination is as a place to start its next run. With nothing profitable, it may fly empty to a better trading spot, or wait. Their trades move the same markets yours do, and they buy more ships as they earn. A rival that runs out of money sells a ship to keep going.
+
+To see how you compare, open **markets → rivals** (or press **rivals screen** on the finance dashboard):
+
+- **Standings:** each company's net worth, its change over the last 12 months, trading profit over the last 12 months (sales and contracts minus cargo, propellant, and fees), cash, debt, and ships in flight.
+- **Net worth over time:** a line for each company. Hover to compare on a date.
+- **Fleets:** what every rival ship is doing, with its route, cargo, and arrival time. Click a ship to show it on the map.
+- **Latest runs:** the last ten runs by each company, yours included, with route, cargo, earnings, and net profit. It shows which routes the rivals are working.
+
+Rival ships also appear on the map as small coloured arrows. Click one to see where it's going, or press **rivals** in the top bar to hide them.
 
 ### Where things come from and where they go
 
@@ -187,9 +210,11 @@ Browser saves are separate for each device. To move a game between your phone an
 
 The game **autosaves every 5 seconds** to your browser's local storage. Open **game / save** to:
 
+- **name your company** (it's shown in the standings)
+- turn **accidents** on or off
 - **save now**
 - **save to file…** to export a JSON backup (browser saves are lost if you clear site data or switch browsers)
 - **load from file…** to import a backup
-- **new game** to start over
+- **new game** to start over. It asks for your company's name and keeps your accidents setting.
 
 Saves from earlier versions of the game load and are upgraded automatically. Your ships, money, and history carry over, the rivals join, and you start without a loan.

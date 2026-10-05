@@ -64,9 +64,13 @@ th{font-size:9px;letter-spacing:.1em;color:var(--dim)}
 .scrollx{overflow-x:auto}
 table.grid td{border-top:1px solid #111417}
 table.grid td.on{cursor:pointer}
+tr.click{cursor:pointer}
+table.l td,table.l th{text-align:left}
+table.l .n{text-align:right}
+tr.click:hover td{background:#0f1316}
 table.grid tr.sel td{background:#0f1316}
 table.grid th.tier{text-align:left;padding-top:8px}
-.base{color:var(--acc);font-size:9px;border:1px solid var(--acc);padding:0 3px;margin-left:4px}
+.base{color:var(--acc);font-size:9px;border:1px solid var(--acc);padding:0 3px;margin-left:4px;cursor:pointer}
 #planner{display:none;overflow-y:auto;overflow-x:hidden}
 .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .fld{display:flex;align-items:center;gap:6px;margin:5px 0}
@@ -216,6 +220,12 @@ body{-webkit-tap-highlight-color:transparent}
   <div class="dim" id="saveStatus"></div>
   <div class="dim" style="margin:6px 0">Browser saves are lost if you clear site data or switch browsers — save to a file to keep a copy you can load anywhere.</div>
   <button id="saveNow">save now</button><button id="exportBtn">save to file…</button><button id="importBtn">load from file…</button>
+  <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px">
+    <div class="fld"><span>COMPANY</span><input id="coName" maxlength="40" style="flex:1;cursor:text"></div>
+    <label><input type="checkbox" id="accidents"> accidents</label>
+    <div class="dim">Ships can be lost on launch, in flight or on landing, and bases can be destroyed. Rivals face the same risks.
+      The planner shows the risk before each launch.</div>
+  </div>
   <input type="file" id="importFile" accept=".json,application/json" hidden>
   <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px"><button id="newBtn">new game</button></div>
 </div></div>
@@ -239,7 +249,7 @@ body{-webkit-tap-highlight-color:transparent}
         <select id="loanTerm"><option value="1">1 year</option><option value="2" selected>2 years</option><option value="5">5 years</option></select>
         <button id="loanBtn">borrow</button></div>
       <div class="dim" id="loanQuote"></div></div>
-    <div><h3>STANDINGS · net worth = cash − debt + ships &amp; bases at resale</h3><table id="finRank"></table></div>
+    <div><h3>STANDINGS · net worth = cash − debt + ships &amp; bases at resale + cargo in flight <button class="sm" id="finRivals">rivals screen</button></h3><table id="finRank"></table></div>
   </div>
   <h3>RECENT TRANSACTIONS</h3><table id="finTx"></table>
 </div></div>
@@ -258,13 +268,21 @@ body{-webkit-tap-highlight-color:transparent}
     <div class="fld" style="flex-wrap:wrap"><span>FROM</span><select id="routeFrom"></select><span>SHIP</span><select id="routeCls"></select></div>
     <div class="dim">Best runs at today's prices with a full hold (or as much as the tank allows on a Hohmann transfer).
       Real windows on the planner's chart can be faster or cheaper. Profit is after cargo, propellant and lift.</div>
-    <div class="scrollx"><table id="routeTable"></table></div>
+    <div class="scrollx"><table id="routeTable" class="l"></table></div>
   </div>
   <div id="mktContracts">
     <div class="dim">Deliver the goods to any site on the world by the deadline. Each tonne pays the contract rate on arrival,
       before the market buys the rest. Miss the deadline and you pay <span id="conPenalty"></span> of the undelivered value.</div>
-    <h3>YOUR CONTRACTS</h3><table id="conMine"></table>
-    <h3>OFFERS</h3><table id="conOffers"></table>
+    <h3>YOUR CONTRACTS</h3><div class="scrollx"><table id="conMine" class="l"></table></div>
+    <h3>OFFERS</h3><div class="scrollx"><table id="conOffers" class="l"></table></div>
+  </div>
+  <div id="mktRivals">
+    <h3>STANDINGS · net worth = cash − debt + ships &amp; bases at resale value + cargo in flight at cost</h3>
+    <div class="scrollx"><table id="rivRank" class="l"></table></div>
+    <h3>NET WORTH OVER TIME</h3>
+    <div class="legend" id="rivLegend"></div>
+    <div class="chart"><canvas id="rivChart"></canvas></div>
+    <div id="rivFleets"></div>
   </div>
 </div></div>
 <div id="finTip" class="tip"></div>
@@ -282,8 +300,10 @@ body{-webkit-tap-highlight-color:transparent}
   <b>Money:</b> you start with a $4M loan due in two years. Interest is charged monthly; borrow or repay from the finance
   screen (click your balance). Miss a due date and you pay a late fee; miss it again and the lender seizes ships.<br><br>
   <b>Bases:</b> build an orbital depot (no lift fee), a trading post (20% off goods) or a warehouse (store cargo) at a site
-  from the planet panel. They cost upkeep every month.<br><br>
-  <b>Rivals:</b> two other companies trade by the same rules and move the same markets. Compare net worth on the finance screen.<br><br>
+  from the planet panel, and give it a name. They cost upkeep every month.<br><br>
+  <b>Accidents</b> (optional, under game / save): ships can be lost on launch, in flight or on landing, and bases destroyed.
+  The planner shows each flight's risk. Name your company there too.<br><br>
+  <b>Rivals:</b> two other companies trade by the same rules and move the same markets. See how you compare under markets → rivals.<br><br>
   <b>Controls:</b> wheel zoom · drag pan · click a body or ship to follow · 1 inner system · 0 outer system ·
   space pause · +/- speed · Esc close.<br>
   <b>On a phone:</b> drag to pan, pinch to zoom, tap planets & ships. The tabs at the bottom switch between your fleet,
@@ -545,23 +565,29 @@ const buysHere = (b, g) => g in ECON[b].buys;
 
 // bases you can build at a site; cost and upkeep in $k (upkeep per month)
 const BASES = {
-  depot:     { name: 'orbital depot', what: 'no lift fee on your launches here', cost: st => 1000 + 800 * st.lift, upkeep: 30, allowed: st => st.kind !== 'station' },
-  post:      { name: 'trading post',  what: '20% off the goods you buy here',      cost: () => 2500, upkeep: 25, allowed: () => true },
-  warehouse: { name: 'warehouse',     what: 'store cargo here between flights',   cost: () => 1500, upkeep: 10, allowed: () => true },
+  depot:     { name: 'orbital depot', title: 'Depot',        what: 'no lift fee on your launches here', cost: st => 1000 + 800 * st.lift, upkeep: 30, allowed: st => st.kind !== 'station' },
+  post:      { name: 'trading post',  title: 'Trading Post', what: '20% off the goods you buy here',      cost: () => 2500, upkeep: 25, allowed: () => true },
+  warehouse: { name: 'warehouse',     title: 'Warehouse',    what: 'store cargo here between flights',   cost: () => 1500, upkeep: 10, allowed: () => true },
 };
 const POST_DISCOUNT = 0.2;
+const defaultBaseName = (site, type) => `${SITES[site].name} ${BASES[type].title}`;
+const MAX_NAME = 40;
+const cleanName = (name, fallback) => String(name ?? '').trim().slice(0, MAX_NAME) || fallback;
 
 const NAMES = ['Halley', 'Kepler', 'Tsiolkovsky', 'Oberth', 'Hohmann', 'Goddard', 'Korolev', 'Lagrange',
   'Tereshkova', 'Vesta', 'Ceres', 'Juno', 'Brahe', 'Laika', 'Gagarin', 'Ride', 'Jemison', 'Leonov'];
 // rival companies: same ships and rules as you
 const RIVALS = {
-  ceres:  { name: 'Ceres Freight',  color: '#c792ea', home: 'baikonur',
+  ceres:  { name: 'Ceres Freight',  color: '#b07cff', home: 'baikonur',
     names: ['Pallas', 'Hygiea', 'Eros', 'Psyche', 'Davida', 'Sylvia', 'Europa', 'Cybele'] },
-  helios: { name: 'Helios Haulage', color: '#f78fb3', home: 'kourou',
+  helios: { name: 'Helios Haulage', color: '#ff6f91', home: 'kourou',
     names: ['Icarus', 'Daedalus', 'Phaethon', 'Aurora', 'Eos', 'Hyperion', 'Theia', 'Selene'] },
 };
 const RIVAL_MAX_SHIPS = 6;
+const OWNERS = ['you', ...Object.keys(RIVALS)];   // every company, you first
 const companyColor = owner => owner === 'you' ? COL.acc : RIVALS[owner].color;
+const DEFAULT_COMPANY = 'Orbital Logistics Co.';
+const companyName = owner => owner === 'you' ? G.company : RIVALS[owner].name;
 
 // ====================================================================== economy: game state
 let G;
@@ -570,12 +596,12 @@ const MONTH = 30.4375, YEAR = 365.25;
 function newGame() {
   G = {
     v: SAVE_VERSION, t: 0, money: 3000, ships: [], log: [], nextId: 0, nextName: 0,
-    ledger: [], startMoney: 3000, startT: 0,
+    ledger: [], startMoney: 3000, startT: 0, company: DEFAULT_COMPANY, accidents: false,
   };
   addEconomy(G);
   addShip('hauler', 'kennedy'); addShip('hauler', 'shackleton'); addShip('hauler', 'jezero'); addShip('clipper', 'kennedy');
   borrow(4000, 2);
-  log('Mission control online. Press ? for help.');
+  log('Mission control online. Press ? for help; name your company under game / save.');
 }
 // the parts of the game state added in save version 5 (shared by new games and migrated saves)
 function addEconomy(g) {
@@ -586,10 +612,16 @@ function addEconomy(g) {
     loans: [], bases: [], store: {}, offers: [], contracts: [], nextOffer: g.t,
     rivals: {},
   });
+  addRecords(g);
   for (const r in RIVALS) {
     g.rivals[r] = { money: 3000, nextName: 0 };
     for (const cls of ['hauler', 'hauler', 'clipper']) addShip(cls, RIVALS[r].home, r, g);
   }
+}
+// each company's trading record: running trading profit, its latest runs, and net worth over time
+function addRecords(g) {
+  g.records = Object.fromEntries(OWNERS.map(o => [o, { traded: 0, runs: [], lost: 0 }]));
+  g.worth = []; g.nextWorth = g.t;
 }
 function addShip(cls, site, owner = 'you', g = G) {
   const names = owner === 'you' ? NAMES : RIVALS[owner].names, co = owner === 'you' ? g : g.rivals[owner];
@@ -785,7 +817,7 @@ function payBills() {
   const overdraft = Math.max(0, -G.money) * OVERDRAFT_RATE * f;
   book('you', 'interest', -interest, null, 'monthly loan interest');
   book('you', 'interest', -overdraft, null, 'overdraft interest');
-  for (const b of G.bases) book('you', 'upkeep', -BASES[b.type].upkeep, null, `${BASES[b.type].name} at ${SITES[b.site].name}`);
+  for (const b of G.bases) book('you', 'upkeep', -BASES[b.type].upkeep, null, `${b.name} (${BASES[b.type].name})`);
 }
 function loanDue(l) {
   if (G.money >= l.amount) {
@@ -830,12 +862,13 @@ function sellShip(s, why = 'sold') {
 
 // ====================================================================== economy: bases
 const hasBase = (site, type) => G.bases.some(b => b.site === site && b.type === type);
-function build(site, type) {
+function build(site, type, name) {
   const B = BASES[type], cost = B.cost(SITES[site]);
   if (hasBase(site, type) || !B.allowed(SITES[site]) || G.money < cost) return;
-  G.bases.push({ site, type, cost, t: G.t });
-  book('you', 'base', -cost, null, `${B.name} at ${SITES[site].name}`);
-  log(`Built ${/^[aeiou]/.test(B.name) ? 'an' : 'a'} ${B.name} at ${SITES[site].name} −${money(cost)}`);
+  name = cleanName(name, defaultBaseName(site, type));
+  G.bases.push({ site, type, cost, t: G.t, name });
+  book('you', 'base', -cost, null, `${name} (${B.name}) at ${SITES[site].name}`);
+  log(`Built ${name}, ${/^[aeiou]/.test(B.name) ? 'an' : 'a'} ${B.name} at ${SITES[site].name} −${money(cost)}`);
 }
 // move cargo between a docked ship and the warehouse at its site (q > 0 stores, q < 0 loads)
 function stow(s, g, q) {
@@ -856,18 +889,73 @@ function sellStored(site, g) {
   log(`Sold ${q}t ${GOODS[g].name} from the ${SITES[site].name} warehouse ${signed(v)}`);
 }
 
-// What everyone is worth: cash, less debt, plus ships and bases at resale value
+// What everyone is worth: cash, less debt, plus ships and bases at resale value and cargo in flight at cost
 function netWorth(owner) {
-  const ships = G.ships.filter(s => s.owner === owner).reduce((a, s) => a + CLASSES[s.cls].price * RESALE, 0);
+  const ships = G.ships.filter(s => s.owner === owner)
+    .reduce((a, s) => a + CLASSES[s.cls].price * RESALE + (s.plan ? s.plan.costs.cargo || 0 : 0), 0);
   if (owner !== 'you') return G.rivals[owner].money + ships;
   return G.money - debt() + ships + G.bases.reduce((a, b) => a + b.cost * RESALE, 0);
+}
+
+// ====================================================================== accidents
+// Optional (game / save menu), for everyone alike: ships can be lost on launch, in flight or on landing,
+// and your bases can be destroyed. Launch and landing risks are per event; cruise and base risks per year.
+const LAUNCH_RISK = { surface: 0.002, aerostat: 0.003, station: 0.0005 };
+const LANDING_RISK = { surface: 0.002, aerostat: 0.003, station: 0.0005 };
+const CRUISE_RISK = 0.004;
+const BASE_RISK = { surface: 0.02, aerostat: 0.03, station: 0.01 };
+const chanceWithin = (yearlyRate, days) => -Math.expm1(-yearlyRate * days / YEAR);
+// the chance a flight ends with the ship lost
+const flightRisk = (fromSite, toSite, days) =>
+  1 - (1 - LAUNCH_RISK[SITES[fromSite].kind]) * (1 - chanceWithin(CRUISE_RISK, days)) * (1 - LANDING_RISK[SITES[toSite].kind]);
+const SHIP_LOSS = {
+  launch: ['was lost on launch from {from}', 'exploded leaving {from}'],
+  cruise: ['lost contact en route to {to}', 'was destroyed by a reactor failure en route to {to}', 'was holed by a micrometeoroid en route to {to}'],
+  landing: ['crashed on arrival at {to}', 'broke up during capture at {to}'],
+};
+const BASE_LOSS = ['was destroyed by fire', 'was wrecked by a quake', 'was flattened by a meteorite', 'was lost to a pressure-hull failure'];
+function loseShip(s, phase) {
+  const p = s.plan, mine = isMine(s);
+  const what = pick(SHIP_LOSS[phase]).replace('{from}', SITES[p.fromSite].name).replace('{to}', SITES[p.toSite].name);
+  G.ships = G.ships.filter(x => x !== s);
+  G.records[s.owner].lost++;
+  log(`${mine ? 'ACCIDENT · ' : RIVALS[s.owner].name + ' · '}${s.name} ${what}${tons(s.hold) ? ` with ${holdStr(s.hold)} aboard` : ''}`);
+  if (!mine) return;
+  if (P.shipId === s.id) closePlanner();
+  alertPause();
+}
+// roll for an accident in one phase of a flight (cruise covers the part of the last dt days spent flying);
+// true if the ship was lost
+function accident(s, phase, dt = 0) {
+  if (!G.accidents) return false;
+  const p = s.plan;
+  const risk = phase === 'launch' ? LAUNCH_RISK[SITES[p.fromSite].kind] : phase === 'landing' ? LANDING_RISK[SITES[p.toSite].kind] :
+    chanceWithin(CRUISE_RISK, Math.max(0, Math.min(G.t, p.t1) - Math.max(G.t - dt, p.t0)));
+  if (Math.random() >= risk) return false;
+  loseShip(s, phase);
+  return true;
+}
+function baseAccidents(dt) {
+  if (!G.accidents) return;
+  for (const b of [...G.bases]) {
+    if (Math.random() >= chanceWithin(BASE_RISK[SITES[b.site].kind], dt)) continue;
+    G.bases = G.bases.filter(x => x !== b);
+    const stored = b.type === 'warehouse' && G.store[b.site] && tons(G.store[b.site]) ? ` with ${holdStr(G.store[b.site])} inside` : '';
+    if (b.type === 'warehouse') delete G.store[b.site];
+    log(`ACCIDENT · ${b.name} at ${SITES[b.site].name} ${pick(BASE_LOSS)}${stored}`);
+    alertPause();
+  }
 }
 
 // ====================================================================== formatting
 const EPOCH = Date.UTC(2040, 0, 1);
 const dateStr = t => new Date(EPOCH + t * 864e5).toISOString().slice(0, 10);
-const money = k => (k < 0 ? '-' : '') + (Math.abs(k) >= 1000 ? '$' + (Math.abs(k) / 1000).toFixed(2) + 'M' : '$' + Math.round(Math.abs(k)) + 'k');
-const signed = k => (k >= 0 ? '+' : '') + money(k);
+// $k → "$12k" / "$1.25M"; amounts that round to zero show no minus sign
+const money = k => {
+  const a = Math.abs(k), big = a >= 999.5, shown = big ? (a / 1000).toFixed(2) + 'M' : Math.round(a) + 'k';
+  return (k < 0 && (big || Math.round(a) > 0) ? '-' : '') + '$' + shown;
+};
+const signed = k => (money(k).startsWith('-') ? '' : '+') + money(k);
 const days = d => d < 2 ? (d * 24).toFixed(0) + 'h' : d < 730 ? Math.round(d) + 'd' : (d / 365.25).toFixed(1) + 'y';
 const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const stamp = t => new Date(EPOCH + t * 864e5).toISOString().slice(0, 16).replace('T', ' ');
@@ -978,6 +1066,7 @@ function schedule(s, tr, pts, toSite, buy, q) {
   book(s.owner, 'cargo', -q.cargoCost, s, `${holdStr(bought)} at ${from.name}`);
   book(s.owner, 'fuel', -q.fuelCost, s, `${q.buyFuel.toFixed(1)}t at ${from.name}`);
   book(s.owner, 'lift', -q.lift, s, `${from.kind === 'station' ? 'docking' : 'launch'} fee at ${from.name}`);
+  G.records[s.owner].traded -= q.cost;
   const fe = flightEvents(tr, pts, s.site, toSite, q.c, q.mass, q.load);
   s.plan = {
     events: fe.events, fuelAfter: fe.fuelAfter,
@@ -993,6 +1082,7 @@ function scrub(s) {
   for (const k in p.costs) book(s.owner, k, p.costs[k], s, 'scrubbed launch refund');
   for (const g in p.bought) trade(b, g, -p.bought[g]);
   if (p.buyFuel) trade(b, 'propellant', -p.buyFuel);
+  G.records[s.owner].traded += p.paid;
   s.fuel = p.fuelBefore; s.hold = p.holdBefore; s.plan = null; s.status = 'docked';
   log(`${s.name} launch scrubbed, refunded ${money(p.paid)}`);
 }
@@ -1014,6 +1104,10 @@ function arrive(s) {
   const saleTotal = r.sales.reduce((a, x) => a + x.v, 0), sold = r.sales.map(x => `${x.q}t ${GOODS[x.g].name}`);
   book(s.owner, 'sale', saleTotal, s, `${sold.join(', ')} at ${to.name}`);
   s.hold = r.left;
+  const rec = G.records[s.owner];
+  rec.traded += r.revenue;
+  rec.runs.unshift({ t: G.t, ship: s.name, from: p.fromSite, to: p.toSite, cargo: holdStr(loaded), revenue: r.revenue, paid: p.paid });
+  if (rec.runs.length > 10) rec.runs.pop();
   if (!mine) return;
   s.logbook = [{ from: p.fromSite, to: p.toSite, t0: p.t0, t1: p.t1, dv: p.dv, paid: p.paid, rev: r.revenue, events: p.events }, ...(s.logbook || [])].slice(0, 8);
   log(`${s.name} arrived ${to.name}` + (r.revenue ? ` · earned ${signed(r.revenue)}` : '') +
@@ -1044,20 +1138,19 @@ function hopEstimate(a, b) {
   }
   return hopCache[key] = est;
 }
-// The cheapest transfer window from a to b over the next synodic period, on a coarse grid (for rival pilots).
+// Transfer windows from a to b over the next synodic period, on a coarse grid (for rival pilots).
 // Cached for a few days, since ships at the same world look at the same windows.
 const windowCache = {};
-function cheapestWindow(a, b) {
+function windowGrid(a, b) {
   const key = a + '>' + b, hit = windowCache[key];
-  if (hit && G.t - hit.at < 5 && hit.tr.t0 > G.t) return hit.tr;
-  const R = pairRange(a, b), NX = 16, NY = 8;
-  let best = null;
+  if (hit && G.t - hit.at < 5 && hit.trs.every(tr => tr.t0 > G.t)) return hit.trs;
+  const R = pairRange(a, b), NX = 16, NY = 8, trs = [];
   for (let i = 0; i < NX; i++) for (let j = 0; j < NY; j++) {
     const tr = transfer(a, b, G.t + R.dep[0] + (i + .5) / NX * (R.dep[1] - R.dep[0]), R.tof[0] + (j + .5) / NY * (R.tof[1] - R.tof[0]));
-    if (tr && (!best || tr.dv < best.dv)) best = tr;
+    if (tr) trs.push(tr);
   }
-  if (best) windowCache[key] = { at: G.t, tr: best };
-  return best;
+  windowCache[key] = { at: G.t, trs };
+  return trs;
 }
 // Best trading runs right now from each site that sells a good to each world that buys it, for a ship class.
 // Uses the Hohmann estimate for fuel and time, and a full hold (or as much as the tank allows).
@@ -1086,41 +1179,72 @@ function bestRoutes(cls, fromBody) {
 
 // ====================================================================== rivals
 // Rival companies fly by your rules: same ships, prices, fuel and fees, and their trades move the same
-// markets. Each idle ship takes the most profitable run per day it can find from where it is.
-const RIVAL_WAIT = 30;   // days an idle rival ship waits before looking again
+// markets. Each idle ship weighs every destination, a few transfer windows for each (fast with a light load,
+// slow with a full one) and each good it could carry. It scores a run by its profit plus what the destination
+// is worth as a place to start the next run, per day, and takes the best profitable one. With nothing
+// profitable it may fly empty to a better place to trade from, if that clearly pays for itself.
+const RIVAL_WAIT = 30;     // days an idle rival ship waits before looking again
+const LOOKAHEAD = 90;      // days of the next run counted when scoring where a run ends up
+const HUB_TRUST = 0.5;     // share of those (estimated) prospects a pilot counts on
+const RIVAL_RESERVE = 150; // $k a rival keeps in hand
+// the earliest-arriving window the tank allows for a full, a half and a light load
+function candidateWindows(c, trs) {
+  const out = new Set();
+  for (const q of [c.cargo, c.cargo / 2, 5]) {
+    const cap = dvCap(c, q, c.tank);
+    let best = null;
+    for (const tr of trs) if (tr.dv <= cap && (!best || tr.t1 < best.t1)) best = tr;
+    if (best) out.add(best);
+  }
+  return [...out];
+}
+// profit per day of the best run starting at each site, by ship class (refreshed with the price history)
+const hubCache = {};
+function hubRate(site, cls) {
+  if (!hubCache[cls] || G.t - hubCache[cls].at > SAMPLE_DAYS) {
+    const rate = {};
+    for (const r of bestRoutes(cls)) rate[r.site] = Math.max(rate[r.site] || 0, r.perDay);
+    hubCache[cls] = { at: G.t, rate };
+  }
+  return hubCache[cls].rate[site] || 0;
+}
 function rivalTurn(s) {
-  const co = G.rivals[s.owner], here = SITES[s.site], c = CLASSES[s.cls];
-  let best = null;
+  const co = G.rivals[s.owner], here = SITES[s.site], c = CLASSES[s.cls], budget = co.money - RIVAL_RESERVE;
+  let run = null, move = null;   // best profitable cargo run; best empty move to a better place to trade from
   for (const body of PLANETS) {
     if (body === here.body) continue;
-    const tr = cheapestWindow(here.body, body);
-    if (!tr) continue;
-    const toSite = sitesOf(body).sort((a, b) => SITES[a].lift - SITES[b].lift)[0];
-    const qMax = Math.floor(maxCargoFor(c, tr.dv) / 5) * 5;
-    for (const g of here.goods) {
-      if (!buysHere(body, g)) continue;
-      for (let q = qMax; q >= 5; q -= 5) {
-        const quote = quoteFlight(s, tr, toSite, { [g]: q }, false);
-        if (!quote.fits || quote.cost > co.money) continue;
-        const perDay = quote.net / (tr.t1 - G.t);
-        if (!best || perDay > best.perDay) best = { tr, toSite, buy: { [g]: q }, quote, perDay };
-        break;   // the biggest affordable load is the best one for this good
+    // land where the next run looks best (cheapest lift breaks ties)
+    const toSite = sitesOf(body).sort((a, b) => hubRate(b, s.cls) - hubRate(a, s.cls) || SITES[a].lift - SITES[b].lift)[0];
+    const next = HUB_TRUST * LOOKAHEAD * hubRate(toSite, s.cls);   // prospects there, discounted: they're estimates
+    for (const tr of candidateWindows(c, windowGrid(here.body, body))) {
+      const days = tr.t1 - G.t + LOOKAHEAD;
+      const empty = quoteFlight(s, tr, toSite, {}, false);
+      if (empty.fits && empty.cost <= budget && next > 2 * empty.cost) {
+        const score = (next - empty.cost) / days;
+        if (!move || score > move.score) move = { tr, toSite, buy: {}, quote: empty, score };
+      }
+      const qMax = Math.floor(maxCargoFor(c, tr.dv) / 5) * 5;
+      for (const g of here.goods) {
+        if (!buysHere(body, g)) continue;
+        for (let q = qMax; q >= 5; q -= 5) {
+          const quote = quoteFlight(s, tr, toSite, { [g]: q }, false);
+          if (!quote.fits || quote.cost > budget) continue;
+          const score = (quote.net + next) / days;
+          if (quote.net > 0 && (!run || score > run.score)) run = { tr, toSite, buy: { [g]: q }, quote, score };
+          break;   // the biggest affordable load is the best one for this good and window
+        }
       }
     }
   }
-  if (best && best.perDay > 0) {
-    schedule(s, best.tr, samplePath(best.tr), best.toSite, best.buy, best.quote);
-    s.waits = 0;
-    return;
-  }
+  const pick = run || move;
+  if (pick) return schedule(s, pick.tr, samplePath(pick.tr), pick.toSite, pick.buy, pick.quote);
   s.idleUntil = G.t + RIVAL_WAIT;
-  s.waits = (s.waits || 0) + 1;
-  // stuck somewhere with nothing worth carrying: fly home empty, where there's always something to sell
-  const home = RIVALS[s.owner].home;
-  if (s.waits >= 4 && SITES[home].body !== here.body) {
-    const tr = cheapestWindow(here.body, SITES[home].body);
-    const quote = tr && quoteFlight(s, tr, home, {}, false);
-    if (quote && quote.fits && quote.cost <= co.money) { schedule(s, tr, samplePath(tr), home, {}, quote); s.waits = 0; }
+  // broke with the whole fleet in port: sell this ship to raise cash, like a player would
+  const fleet = G.ships.filter(x => x.owner === s.owner);
+  if (co.money < RIVAL_RESERVE && fleet.length > 1 && fleet.every(x => x.status === 'docked')) {
+    G.ships = G.ships.filter(x => x !== s);
+    co.money += CLASSES[s.cls].price * RESALE;
+    log(`${RIVALS[s.owner].name} sold the ${CLASSES[s.cls].name.toLowerCase()} ${s.name} to raise cash`);
   }
 }
 function stepRivals() {
@@ -1151,15 +1275,22 @@ function step(dt) {
   stepMarkets(dt);
   stepContracts(dt);
   stepLoans();
-  for (const s of G.ships) {
+  baseAccidents(dt);
+  for (const s of G.ships) {   // a short flight can launch and land within one step, so check every phase in turn
     const p = s.plan;
     if (s.status === 'scheduled' && G.t >= p.t0) {
+      if (accident(s, 'launch')) continue;
       s.status = 'transit';
       if (isMine(s)) log(`${s.name} launched ${SITES[p.fromSite].name} → ${SITES[p.toSite].name}`);
     }
-    if (s.status === 'transit' && G.t >= p.t1) arrive(s);
+    if (s.status !== 'transit' || accident(s, 'cruise', dt)) continue;
+    if (G.t >= p.t1 && !accident(s, 'landing')) arrive(s);
   }
   stepRivals();
+  for (; G.nextWorth <= G.t; G.nextWorth += SAMPLE_DAYS) {   // standings history, on the price-history clock
+    G.worth.push([round1(G.nextWorth), ...OWNERS.map(o => Math.round(netWorth(o))), ...OWNERS.map(o => Math.round(G.records[o].traded))]);
+    if (G.worth.length > SAMPLE_MAX) G.worth.shift();
+  }
 }
 
 // ====================================================================== camera + rendering
@@ -1470,7 +1601,19 @@ onTap($('top'), t => {
 });
 function toggleHelp() { const h = $('help'); h.style.display = h.style.display === 'flex' ? 'none' : 'flex'; }
 $('helpBtn').onclick = toggleHelp; $('helpClose').onclick = toggleHelp;
-$('newBtn').onclick = () => { if (confirm('Start a new game? Current progress is lost.')) { newGame(); closePlanner(); closeModals(); focus('inner'); } };
+$('newBtn').onclick = () => {
+  if (!confirm('Start a new game? Current progress is lost.')) return;
+  const name = prompt('Name your company:', G.company);
+  const accidents = $('accidents').checked;   // keep the accidents setting for the new game
+  newGame();
+  G.company = cleanName(name, DEFAULT_COMPANY); G.accidents = accidents;
+  closePlanner(); closeModals(); focus('inner');
+};
+$('coName').onchange = () => { G.company = cleanName($('coName').value, DEFAULT_COMPANY); $('coName').value = G.company; };
+$('accidents').onchange = () => {
+  G.accidents = $('accidents').checked;
+  log(`Accidents ${G.accidents ? 'on: ships and bases can now be lost' : 'off'}`);
+};
 
 // ====================================================================== fleet panel
 $('buyCls').innerHTML = Object.entries(CLASSES).map(([k, c]) => `<option value="${k}">${c.name} ${money(c.price)}</option>`).join('');
@@ -1526,7 +1669,16 @@ onTap($('planetBody'), t => {
   if (d.route) { setDest(d.route); if (mobile()) setTab('plan'); }
   if (d.ship) selectShip(+d.ship);
   if (d.buildAt) PL.build = PL.build === d.buildAt ? null : d.buildAt;
-  if (d.build) { build(PL.build, d.build); PL.build = null; }
+  if (d.build) {
+    const name = prompt(`Name your ${BASES[d.build].name} at ${SITES[PL.build].name}:`, defaultBaseName(PL.build, d.build));
+    if (name !== null) build(PL.build, d.build, name);   // cancel = don't build
+    PL.build = null;
+  }
+  if (d.renameBase) {
+    const b = G.bases.find(x => x.site === d.site && x.type === d.renameBase);
+    const name = b && prompt(`Rename ${b.name}:`, b.name);
+    if (name) b.name = cleanName(name, b.name);
+  }
   if (d.sellStored) sellStored(d.site, d.sellStored);
 });
 // ▲/▼ when a price is more than 3% off its base price, with the percentage unless `pct` is false
@@ -1542,7 +1694,8 @@ function drawPlanet() {
   const sites = sitesOf(b).map(k => {
     const st = SITES[k];
     const send = s && SITES[s.site].body !== b ? ` <button class="sm" data-route="${k}">send ${esc(s.name)} here</button>` : '';
-    const bases = G.bases.filter(x => x.site === k).map(x => `<span class="base" title="${BASES[x.type].what}">${BASES[x.type].name}</span>`).join('');
+    const bases = G.bases.filter(x => x.site === k).map(x =>
+      `<span class="base" data-site="${k}" data-rename-base="${x.type}" title="${BASES[x.type].name}: ${BASES[x.type].what} · click to rename">${esc(x.name)}</span>`).join('');
     const options = Object.keys(BASES).filter(t => !hasBase(k, t) && BASES[t].allowed(st));
     const buildBtn = options.length ? ` <button class="sm" data-build-at="${k}">${PL.build === k ? '× close' : 'build…'}</button>` : '';
     const menu = PL.build === k ? options.map(t => {
@@ -1775,6 +1928,11 @@ function drawPork() {
   mark(P.tr, '#fff');
 }
 
+// with accidents on: the chance of losing the ship on this flight
+function riskLine(fromSite, toSite, days) {
+  const r = flightRisk(fromSite, toSite, days);
+  return `<div><span>RISK</span><span class="${r > 0.01 ? 'warn' : ''}">${(r * 100).toFixed(r < 0.01 ? 2 : 1)}%</span>&nbsp;<span class="dim">chance of losing the ship and cargo</span></div>`;
+}
 // the planner's flight quote, plus why it can't launch (if it can't)
 function evalPlan(s, tr) {
   const q = quoteFlight(s, tr, P.toSite, P.buy, $('pFill').checked);
@@ -1834,6 +1992,7 @@ function drawPlannerText() {
       <div><span>COST</span>${money(e.cost)} <span class="dim">cargo ${money(e.cargoCost)} · fuel ${money(e.fuelCost)} · lift ${money(e.lift)}${hasBase(s.site, 'depot') ? ' (depot)' : ''}</span></div>
       <div><span>SALE</span>${money(e.revenue)} <span class="dim">at today's prices${contract ? ` · ★ contract ${money(contract)}` : ''}${lost.length ? ' · lost in flight: ' + lost.join(', ') : ''}${unsold.length ? ' · stays aboard: ' + unsold.map(g => GOODS[g].name).join(', ') : ''}</span></div>
       <div><span>NET</span><b class="${e.net >= 0 ? 'acc' : 'bad'}">${signed(e.net)}</b></div>
+      ${G.accidents ? riskLine(s.site, P.toSite, tr.t1 - tr.t0) : ''}
       ${e.why ? `<div class="bad" style="margin-top:4px">${e.why}</div>` : ''}`;
     $('pGo').disabled = !(P.tr && evalPlan(s, P.tr).ok);
     drawFlightPlan(s);
@@ -1923,11 +2082,12 @@ function drawLoans() {
     (canBorrow(amt) ? `this loan: ${(loanRate(amt, years) * 100).toFixed(1)}%/yr, interest ${money(amt * loanRate(amt, years) / 12)}/month, due ${dateStr(G.t + years * YEAR)}` : '<span class="warn">over your credit limit</span>');
 }
 $('loanAmt').onchange = $('loanTerm').onchange = drawLoans;
+$('finRivals').onclick = () => { closeModals(); MKT.tab = 'rivals'; $('mktBtn').onclick(); };
 function drawStandings() {
   const rows = ['you', ...Object.keys(RIVALS)].map(o => ({ o, worth: netWorth(o), ships: G.ships.filter(s => s.owner === o).length,
     cash: o === 'you' ? G.money : G.rivals[o].money })).sort((a, b) => b.worth - a.worth);
   $('finRank').innerHTML = `<tr><th>company</th><th>ships</th><th>cash</th><th>net worth</th></tr>` + rows.map(r =>
-    `<tr><td><i style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;background:${companyColor(r.o)}"></i>${r.o === 'you' ? '<b>you</b>' : RIVALS[r.o].name}</td>
+    `<tr><td><i style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;background:${companyColor(r.o)}"></i>${r.o === 'you' ? `<b>${esc(G.company)}</b> <span class="dim">(you)</span>` : RIVALS[r.o].name}</td>
       <td>${r.ships}</td><td>${money(r.cash)}</td><td>${money(r.worth)}</td></tr>`).join('');
 }
 
@@ -2097,7 +2257,7 @@ function drawFinance() {
 
 // ====================================================================== markets screen
 const MKT = { open: false, tab: 'prices', good: 'he3', hx: null, hy: null, drawn: 0 };
-const MKT_TABS = { prices: 'mktPrices', routes: 'mktRoutes', contracts: 'mktContracts' };
+const MKT_TABS = { prices: 'mktPrices', routes: 'mktRoutes', contracts: 'mktContracts', rivals: 'mktRivals' };
 const soldAtSite = (b, g) => sitesOf(b).some(k => SITES[k].goods.includes(g));   // cargo you can load there
 $('mktBtn').onclick = () => { $('mkt').style.display = 'flex'; MKT.open = true; drawMarkets(); };
 $('mktClose').onclick = () => closeModals();
@@ -2118,6 +2278,7 @@ function drawMarkets() {
   if (MKT.tab === 'prices') { drawPriceGrid(); drawPriceChart(); drawNews(); }
   if (MKT.tab === 'routes') drawRoutes();
   if (MKT.tab === 'contracts') drawContracts();
+  if (MKT.tab === 'rivals') drawRivals();
 }
 
 // every good × every world: green where you can load it, amber where the world buys it
@@ -2214,26 +2375,117 @@ function drawNews() {
 function drawRoutes() {
   const cls = $('routeCls').value, list = bestRoutes(cls, $('routeFrom').value || null).slice(0, 25);
   const here = site => myShips().filter(s => s.status === 'docked' && s.site === site && s.cls === cls).map(s => esc(s.name)).join(', ');
-  $('routeTable').innerHTML = `<tr><th>from</th><th>to</th><th>good</th><th>buy</th><th>sell</th><th>load</th><th>flight</th><th>Δv</th><th>profit</th><th>per 30d</th><th>your ${CLASSES[cls].name.toLowerCase()}s there</th></tr>` +
+  $('routeTable').innerHTML = `<tr><th>from</th><th>to</th><th>good</th><th class="n">buy</th><th class="n">sell</th><th class="n">load</th><th class="n">flight</th><th class="n">Δv</th><th class="n">profit</th><th class="n">per 30d</th><th>your ${CLASSES[cls].name.toLowerCase()}s there</th></tr>` +
     (list.map(r => `<tr><td>${SITES[r.site].name} <span class="dim">${ABBR[SITES[r.site].body]}</span></td><td style="color:${COL[r.to]}">${BODIES[r.to].name}</td>
-      <td>${GOODS[r.g].name}</td><td>${r.buy.toFixed(1)}</td><td>${r.sell.toFixed(1)}</td><td>${r.q}t</td><td>${days(r.tof)}</td><td>${r.dv.toFixed(1)}</td>
-      <td class="acc">${money(r.profit)}</td><td>${money(r.perDay * 30)}</td><td class="dim">${here(r.site)}</td></tr>`).join('') ||
+      <td>${GOODS[r.g].name}</td><td class="n">${r.buy.toFixed(1)}</td><td class="n">${r.sell.toFixed(1)}</td><td class="n">${r.q}t</td><td class="n">${days(r.tof)}</td><td class="n">${r.dv.toFixed(1)}</td>
+      <td class="n acc">${money(r.profit)}</td><td class="n">${money(r.perDay * 30)}</td><td class="dim">${here(r.site)}</td></tr>`).join('') ||
       `<tr><td class="dim" colspan="11">no profitable runs for a ${CLASSES[cls].name.toLowerCase()} from here right now</td></tr>`);
 }
 
 function drawContracts() {
   const left = t => t - G.t < 0 ? 'now' : days(t - G.t);
-  $('conMine').innerHTML = `<tr><th>deliver</th><th>to</th><th>rate</th><th>delivered</th><th>value left</th><th>due</th></tr>` +
-    (G.contracts.map(c => `<tr><td>${c.q}t ${GOODS[c.g].name}</td><td style="color:${COL[c.b]}">${BODIES[c.b].name}</td><td>${c.rate.toFixed(1)}</td>
-      <td>${c.done}/${c.q}t</td><td class="acc">${money((c.q - c.done) * c.rate)}</td><td class="${c.due - G.t < 120 ? 'warn' : ''}">${dateStr(c.due)} <span class="dim">${left(c.due)}</span></td></tr>`).join('') ||
+  $('conMine').innerHTML = `<tr><th>deliver</th><th>to</th><th class="n">rate</th><th class="n">delivered</th><th class="n">value left</th><th>due</th></tr>` +
+    (G.contracts.map(c => `<tr><td>${c.q}t ${GOODS[c.g].name}</td><td style="color:${COL[c.b]}">${BODIES[c.b].name}</td><td class="n">${c.rate.toFixed(1)}</td>
+      <td class="n">${c.done}/${c.q}t</td><td class="n acc">${money((c.q - c.done) * c.rate)}</td><td class="${c.due - G.t < 120 ? 'warn' : ''}">${dateStr(c.due)} <span class="dim">${left(c.due)}</span></td></tr>`).join('') ||
       '<tr><td class="dim" colspan="6">none — accept an offer below</td></tr>');
   const full = G.contracts.length >= MAX_CONTRACTS;
-  $('conOffers').innerHTML = `<tr><th>deliver</th><th>to</th><th>rate</th><th>vs market</th><th>value</th><th>deadline</th><th>offer ends</th><th></th></tr>` +
-    (G.offers.map(o => `<tr><td>${o.q}t ${GOODS[o.g].name}</td><td style="color:${COL[o.b]}">${BODIES[o.b].name}</td><td>${o.rate.toFixed(1)}</td>
-      <td class="acc">+${Math.round((o.rate / price(o.b, o.g) - 1) * 100)}%</td><td>${money(o.q * o.rate)}</td><td>${dateStr(o.due)} <span class="dim">${left(o.due)}</span></td>
+  $('conOffers').innerHTML = `<tr><th>deliver</th><th>to</th><th class="n">rate</th><th class="n">vs market</th><th class="n">value</th><th>deadline</th><th>offer ends</th><th></th></tr>` +
+    (G.offers.map(o => `<tr><td>${o.q}t ${GOODS[o.g].name}</td><td style="color:${COL[o.b]}">${BODIES[o.b].name}</td><td class="n">${o.rate.toFixed(1)}</td>
+      <td class="n acc">+${Math.round((o.rate / price(o.b, o.g) - 1) * 100)}%</td><td class="n">${money(o.q * o.rate)}</td><td>${dateStr(o.due)} <span class="dim">${left(o.due)}</span></td>
       <td class="dim">${left(o.expires)}</td><td><button class="sm" data-accept="${o.id}" ${full ? `disabled title="at most ${MAX_CONTRACTS} contracts at once"` : ''}>accept</button></td></tr>`).join('') ||
       '<tr><td class="dim" colspan="8">no offers right now — new ones are posted every few weeks</td></tr>');
 }
+
+// rivals tab: standings, net worth over time, each rival's fleet, and everyone's latest runs
+const RC = { L: 66, R: 58, T: 10, B: 22, H: 200 };   // chart margins and height
+const RIV = { hx: null };                              // crosshair position on the net worth chart
+const swatch = o => `<i style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;background:${companyColor(o)}"></i>`;
+const ownerLabel = o => o === 'you' ? `${esc(G.company)} (you)` : RIVALS[o].name;
+const tone = v => v == null || Math.round(v) === 0 ? 'dim' : v > 0 ? 'acc' : 'bad';   // colour for a change in money
+// the standings row from about a year ago (or the oldest one we have)
+const worthYearAgo = () => G.worth.find(r => r[0] >= G.t - YEAR) || null;
+onTap($('rivFleets'), t => {
+  const el = t.closest('[data-ship]'); if (!el) return;
+  const s = ship(+el.dataset.ship); if (!s) return;
+  closeModals(); selectShip(s.id);
+  if (s.status !== 'docked') { cam.follow = s.id; cam.ox = cam.oy = 0; } else focus(SITES[s.site].body);
+});
+function drawRivals() {
+  const ago = worthYearAgo(), n = OWNERS.length;
+  const rows = OWNERS.map((o, k) => {
+    const fleet = G.ships.filter(s => s.owner === o);
+    return { o, worth: netWorth(o), cash: o === 'you' ? G.money : G.rivals[o].money, debt: o === 'you' ? debt() : 0,
+      ships: fleet.length, flying: fleet.filter(s => s.status !== 'docked').length, lost: G.records[o].lost,
+      change: ago ? netWorth(o) - ago[1 + k] : null, traded: G.records[o].traded - (ago ? ago[1 + n + k] : 0) };
+  }).sort((a, b) => b.worth - a.worth);
+  $('rivRank').innerHTML = `<tr><th>#</th><th>company</th><th class="n">net worth</th><th class="n">change, 12 mo</th><th class="n">trading profit, 12 mo</th><th class="n">cash</th><th class="n">debt</th><th class="n">ships</th><th class="n">in flight</th><th class="n">ships lost</th></tr>` +
+    rows.map((r, i) => `<tr><td>${i + 1}</td><td>${swatch(r.o)}${r.o === 'you' ? `<b>${esc(G.company)}</b> <span class="dim">(you)</span>` : RIVALS[r.o].name}</td><td class="n"><b>${money(r.worth)}</b></td>
+      <td class="n ${tone(r.change)}">${r.change == null ? '—' : signed(r.change)}</td>
+      <td class="n ${tone(r.traded)}">${signed(r.traded)}</td><td class="n">${money(r.cash)}</td><td class="n">${r.debt ? money(r.debt) : '—'}</td>
+      <td class="n">${r.ships}</td><td class="n">${r.flying}</td><td class="n ${r.lost ? 'bad' : 'dim'}">${r.lost}</td></tr>`).join('');
+  drawWorthChart();
+  const fleet = o => G.ships.filter(s => s.owner === o).map(s => {
+    const p = s.plan;
+    const where = s.status === 'docked' ? `docked at ${SITES[s.site].name}` :
+      `${SITES[p.fromSite].name} → ${SITES[p.toSite].name} <span class="dim">${s.status === 'scheduled' ? 'launch in ' + days(p.t0 - G.t) : 'ETA ' + days(p.t1 - G.t)}</span>`;
+    return `<tr data-ship="${s.id}" class="click"><td>${esc(s.name)}</td><td class="dim">${CLASSES[s.cls].name.toLowerCase()}</td><td>${where}</td><td class="dim">${holdStr(s.hold)}</td></tr>`;
+  }).join('');
+  const runs = o => G.records[o].runs.map(r =>
+    `<tr><td class="dim">${dateStr(r.t)}</td><td>${esc(r.ship)}</td><td>${SITES[r.from].name} → ${SITES[r.to].name}</td><td class="dim">${esc(r.cargo)}</td>
+      <td class="n">${money(r.revenue)}</td><td class="n ${r.revenue - r.paid >= 0 ? 'acc' : 'bad'}">${signed(r.revenue - r.paid)}</td></tr>`).join('') ||
+    '<tr><td class="dim" colspan="6">no runs yet</td></tr>';
+  $('rivFleets').innerHTML = OWNERS.map(o => `<h3 style="text-transform:uppercase">${swatch(o)}${ownerLabel(o)}</h3>` +
+    (o === 'you' ? '' : `<div class="scrollx"><table class="l"><tr><th>ship</th><th>class</th><th>doing · click to show on the map</th><th>cargo</th></tr>${fleet(o)}</table></div>`) +
+    `<div class="scrollx"><table class="l"><tr><th>latest runs</th><th>ship</th><th>route</th><th>cargo</th><th class="n">earned</th><th class="n">net</th></tr>${runs(o)}</table></div>`).join('');
+}
+function drawWorthChart(ev) {
+  $('rivLegend').innerHTML = OWNERS.map(o => `<span>${swatch(o)}${ownerLabel(o)}</span>`).join('');
+  const [c, w, h] = canvasFor('rivChart', RC.H), { L, R, T, B } = RC;
+  const rows = [...G.worth, [G.t, ...OWNERS.map(netWorth)]];   // history plus right now
+  if (rows.length < 3) { c.fillStyle = COL.dim; c.textAlign = 'center'; c.fillText('the chart fills in as time passes', w / 2, h / 2); return; }
+  const t0 = rows[0][0], t1 = Math.max(G.t, t0 + 1);
+  let lo = 0, hi = 1; for (const r of rows) for (let k = 0; k < OWNERS.length; k++) { lo = Math.min(lo, r[1 + k]); hi = Math.max(hi, r[1 + k]); }
+  const yt = niceTicks(lo, hi); lo = yt[0]; hi = yt[yt.length - 1];
+  const X = t => L + (t - t0) / (t1 - t0) * (w - L - R), Y = v => T + (1 - (v - lo) / (hi - lo)) * (h - T - B);
+  c.textAlign = 'right';
+  for (const v of yt) {
+    c.strokeStyle = v === 0 ? '#2a2e33' : '#14171a'; c.beginPath(); c.moveTo(L, Y(v) + .5); c.lineTo(w - R, Y(v) + .5); c.stroke();
+    c.fillStyle = COL.dim; c.fillText(money(v), L - 6, Y(v) + 3);
+  }
+  c.textAlign = 'center';
+  for (const [t, lab] of timeTicks(t0, t1)) c.fillText(lab, X(t), h - 6);
+  c.lineWidth = 2; c.lineJoin = c.lineCap = 'round';
+  OWNERS.forEach((o, k) => {
+    c.strokeStyle = companyColor(o); c.beginPath();
+    rows.forEach((r, i) => i ? c.lineTo(X(r[0]), Y(r[1 + k])) : c.moveTo(X(r[0]), Y(r[1 + k])));
+    c.stroke();
+  });
+  c.lineWidth = 1;
+  // end dots with direct labels, nudged apart so they don't overlap
+  const last = rows[rows.length - 1];
+  const ends = OWNERS.map((o, k) => ({ o, y: Y(last[1 + k]) })).sort((a, b) => a.y - b.y);
+  ends.forEach((e, i) => { e.ly = i ? Math.max(e.y, ends[i - 1].ly + 11) : e.y; });
+  c.textAlign = 'left';
+  for (const e of ends) {
+    c.fillStyle = COL.bg; c.beginPath(); c.arc(X(last[0]), e.y, 6, 0, 7); c.fill();
+    c.fillStyle = companyColor(e.o); c.beginPath(); c.arc(X(last[0]), e.y, 4, 0, 7); c.fill();
+    c.fillStyle = COL.fg; c.fillText(e.o === 'you' ? 'you' : RIVALS[e.o].name.split(' ')[0], X(last[0]) + 8, e.ly + 3);   // short labels; the legend has full names
+  }
+  if (RIV.hx != null && RIV.hx >= L && RIV.hx <= w - R) {   // crosshair + tooltip at the nearest sample
+    const r = rows.reduce((a, b) => Math.abs(X(b[0]) - RIV.hx) < Math.abs(X(a[0]) - RIV.hx) ? b : a);
+    c.strokeStyle = '#3a3f45'; c.beginPath(); c.moveTo(X(r[0]) + .5, T); c.lineTo(X(r[0]) + .5, h - B); c.stroke();
+    OWNERS.forEach((o, k) => {
+      c.fillStyle = COL.bg; c.beginPath(); c.arc(X(r[0]), Y(r[1 + k]), 6, 0, 7); c.fill();
+      c.fillStyle = companyColor(o); c.beginPath(); c.arc(X(r[0]), Y(r[1 + k]), 4, 0, 7); c.fill();
+    });
+    if (ev) showTip(`<span class="dim">${dateStr(r[0])}</span>` + OWNERS.map((o, k) => [o, r[1 + k]]).sort((a, b) => b[1] - a[1])
+      .map(([o, v]) => `<br>${swatch(o)}${ownerLabel(o)} <b>${money(v)}</b>`).join(''), ev);
+  }
+}
+const worthPoint = e => { RIV.hx = e.offsetX; drawWorthChart(e); };
+$('rivChart').addEventListener('pointermove', worthPoint);
+$('rivChart').addEventListener('pointerdown', worthPoint);
+$('rivChart').addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { RIV.hx = null; hideTip(); drawWorthChart(); } });
 
 // ====================================================================== save / loop
 let lastSaved = 0, saveError = '';
@@ -2257,6 +2509,12 @@ function migrate(s) {
     for (const [b, g] of MARKETS) s.market[b][g].taken = (old[b]?.[g] || 0) * GOODS[g].depth * marketScale(b, s.t);
     s.v = 5;
   }
+  if (s && s.v === 5) {   // fields added while v5 was in development
+    if (!s.records) addRecords(s);
+    for (const o of OWNERS) if (s.records[o]) s.records[o].lost ??= 0;
+    s.company ??= DEFAULT_COMPANY; s.accidents ??= false;
+    if (Array.isArray(s.bases)) for (const b of s.bases) if (b && SITES[b.site] && BASES[b.type]) b.name ??= defaultBaseName(b.site, b.type);
+  }
   return s;
 }
 function exportSave() {
@@ -2277,7 +2535,11 @@ async function importSave(file) {
   if (!confirm(`Load the save from ${dateStr(s.t)} (${money(s.money)}, ${s.ships.length} ships)? The current game will be replaced.`)) return;
   G = s; closePlanner(); closeModals(); save(); log('Loaded game from file');
 }
-$('gameBtn').onclick = () => { $('gameMenu').style.display = 'flex'; drawSaveStatus(); };
+$('gameBtn').onclick = () => {
+  $('gameMenu').style.display = 'flex';
+  $('coName').value = G.company; $('accidents').checked = G.accidents;
+  drawSaveStatus();
+};
 $('gameClose').onclick = () => closeModals();
 $('saveNow').onclick = () => { save(); drawSaveStatus(); };
 $('exportBtn').onclick = exportSave;
@@ -2294,7 +2556,7 @@ function validSave(s) {
   const num = v => typeof v === 'number' && isFinite(v), str = v => typeof v === 'string', obj = v => !!v && typeof v === 'object';
   const cargo = h => obj(h) && Object.entries(h).every(([g, q]) => GOODS[g] && num(q));
   const traded = (b, g) => !!s.market?.[b]?.[g];
-  if (!s || s.v !== SAVE_VERSION) return false;
+  if (!s || s.v !== SAVE_VERSION || !str(s.company) || typeof s.accidents !== 'boolean') return false;
   if (![s.t, s.money, s.nextId, s.nextName, s.startMoney, s.startT, s.nextSample, s.nextBill, s.nextOffer].every(num)) return false;
   if (![s.ships, s.log, s.ledger, s.events, s.news, s.prices, s.loans, s.bases, s.offers, s.contracts].every(Array.isArray) || !obj(s.store) || !obj(s.rivals)) return false;
   if (!s.ledger.every(e => obj(e) && num(e.t) && num(e.amt) && e.cat in CATS && num(e.ship) && str(e.name) && str(e.note))) return false;
@@ -2304,11 +2566,14 @@ function validSave(s) {
   if (!s.news.every(n => obj(n) && traded(n.b, n.g) && num(n.t) && num(n.k) && str(n.text))) return false;
   if (!s.prices.every(r => Array.isArray(r) && r.length === MARKETS.length + 1 && r.every(num))) return false;
   if (!s.loans.every(l => obj(l) && [l.id, l.amount, l.rate, l.due, l.missed].every(num))) return false;
-  if (!s.bases.every(b => obj(b) && SITES[b.site] && BASES[b.type] && num(b.cost))) return false;
+  if (!s.bases.every(b => obj(b) && SITES[b.site] && BASES[b.type] && num(b.cost) && str(b.name))) return false;
   if (!Object.entries(s.store).every(([k, h]) => SITES[k] && cargo(h))) return false;
   const deal = c => obj(c) && GOODS[c.g] && ECON[c.b] && buysHere(c.b, c.g) && [c.id, c.q, c.rate, c.due].every(num);
   if (!s.offers.every(o => deal(o) && num(o.expires)) || !s.contracts.every(c => deal(c) && num(c.done))) return false;
   if (!Object.keys(RIVALS).every(r => obj(s.rivals[r]) && num(s.rivals[r].money) && num(s.rivals[r].nextName))) return false;
+  if (!OWNERS.every(o => obj(s.records?.[o]) && num(s.records[o].traded) && num(s.records[o].lost) && Array.isArray(s.records[o].runs) &&
+    s.records[o].runs.every(r => obj(r) && SITES[r.from] && SITES[r.to] && [r.t, r.revenue, r.paid].every(num) && str(r.ship) && str(r.cargo)))) return false;
+  if (!num(s.nextWorth) || !Array.isArray(s.worth) || !s.worth.every(r => Array.isArray(r) && r.length === 1 + 2 * OWNERS.length && r.every(num))) return false;
   for (const x of s.ships) {
     if (!obj(x) || !num(x.id) || !str(x.name) || !CLASSES[x.cls] || !SITES[x.site] || !num(x.fuel) || !cargo(x.hold)) return false;
     if (!(x.owner === 'you' || RIVALS[x.owner]) || !['docked', 'scheduled', 'transit'].includes(x.status)) return false;
