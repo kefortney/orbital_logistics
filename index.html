@@ -8,6 +8,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Orbital Logistics</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <style>
 :root{
   --bg:#050607; --fg:#c9cdd2; --dim:#6b7178; --line:#23272c; --acc:#7cffb2;
@@ -2323,6 +2326,9 @@ setTab('fleet');
 focus('inner');
 MQ.addEventListener('change', () => { sizePork(); topKey = ''; drawTop(); if (typeof cam.follow === 'string') focus(cam.follow); });
 setInterval(save, 5000); addEventListener('beforeunload', save);
+// installable app with offline play (needs https or localhost; opening the file directly still works without it)
+if ('serviceWorker' in navigator && isSecureContext && location.protocol !== 'file:')
+  navigator.serviceWorker.register('sw.js').catch(e => console.warn('offline support unavailable:', e));
 
 let last = performance.now(), lastUI = 0;
 function frame(now) {

@@ -179,7 +179,7 @@ Tap the open tab again to hide the sheet and see the whole map.
 - On the transfer chart, **tap** a spot to pick that window, or **drag** across the chart to preview windows and lift your finger on the one you want.
 - Use **max** next to a cargo row to fill the hold, since there is no shift key.
 - On the finance charts, tap or drag sideways to see values.
-- To play full screen, use your browser's **Add to Home Screen** option.
+- To play full screen, **install** the game: in Chrome, open the menu and choose **Install app** (or **Add to Home screen**). On an iPhone, use Safari's **Share → Add to Home Screen**. The installed game has its own icon, opens full screen, and works offline.
 
 Browser saves are separate for each device. To move a game between your phone and computer, use **save to file** and **load from file**.
 
