@@ -108,7 +108,7 @@ You start with a **$4.00M loan due in two years**. Interest is charged monthly. 
 
 ## Bases
 
-Build bases from the planet panel. Press **build…** next to a site. Each costs a one-off price plus monthly upkeep:
+Build bases from the planet panel. Press **build…** next to a site, pick a base, and give it a name (or keep the suggested one, like "Kennedy Depot"). Click a base's tag in the planet panel to rename it later. Each base costs a one-off price plus monthly upkeep:
 
 | Base | Effect | Cost | Upkeep |
 |------|--------|------|--------|
@@ -117,6 +117,19 @@ Build bases from the planet panel. Press **build…** next to a site. Each costs
 | **Warehouse** | Store cargo there between flights. In the planner, **+** loads into the hold and **−** stores. Stored goods the world buys can be sold from the planet panel at any time. | $1.5M | $10k/month |
 
 A depot at Kennedy saves up to about $400k on every Hauler launch. A warehouse at the Moon lets you stockpile helium-3 and sell it when Earth's price peaks.
+
+## Accidents
+
+Accidents are **off** by default. Turn them on or off at any time with the **accidents** checkbox in the **game / save** menu. When they're on, rivals face the same risks.
+
+| What | Risk |
+|------|------|
+| **Launch** | 0.2% from a surface site, 0.3% from Venus's aerostat, 0.05% undocking from a station |
+| **Flight** | 0.4% per year in flight, so long outer-planet runs are riskier |
+| **Landing** | Same as launch, by the kind of site you arrive at |
+| **Bases** | 2% a year on a surface, 3% on Venus's aerostat, 1% at a station |
+
+A lost ship takes its cargo with it, and a destroyed warehouse loses everything stored in it. With accidents on, the planner shows the **RISK** of each flight before you launch: about 0.4% for an Earth–Moon hop, 0.7% for a run to Mars, and nearly 4% for a 9-year trip to Neptune. Accidents are logged and trigger auto-pause. The rivals screen counts each company's ships lost.
 
 ## Rivals
 
@@ -197,9 +210,11 @@ Browser saves are separate for each device. To move a game between your phone an
 
 The game **autosaves every 5 seconds** to your browser's local storage. Open **game / save** to:
 
+- **name your company** (it's shown in the standings)
+- turn **accidents** on or off
 - **save now**
 - **save to file…** to export a JSON backup (browser saves are lost if you clear site data or switch browsers)
 - **load from file…** to import a backup
-- **new game** to start over
+- **new game** to start over. It asks for your company's name and keeps your accidents setting.
 
 Saves from earlier versions of the game load and are upgraded automatically. Your ships, money, and history carry over, the rivals join, and you start without a loan.

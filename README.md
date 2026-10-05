@@ -11,6 +11,8 @@ A browser-based space freight trading game. You run mission control for a small 
 - **Realistic cargo.** 13 goods in five tiers. Food and medicine spoil and cryogenic cargo boils off on long flights.
 - **Contracts.** Deliver a good to a world by a deadline for a premium, or pay a penalty.
 - **Loans and bases.** Start in debt, borrow against your fleet, and build orbital depots (no lift fee), trading posts (cheaper goods), and warehouses (store cargo). Miss a loan payment and the lender seizes ships.
+- **Optional accidents.** Turn on the risk of losing ships on launch, in flight, or on landing, and of losing bases. The planner shows each flight's risk.
+- **Your own names.** Name your company and your bases.
 - **Rival companies.** Two AI freight companies fly by the same rules, compete in the same markets, and grow their fleets. A rivals screen shows the standings, net worth over time, every rival ship's current job, and each company's latest runs.
 - **A fleet to manage.** Fly chemical-nuclear *Haulers* (40 t cargo) for the inner system and fusion *Clippers* (20 t) for the outer planets, and buy more ships as you grow.
 - **Flight timelines.** Each flight lists its burns, sphere-of-influence crossings, perihelion and aphelion, and planetary orbit crossings.
